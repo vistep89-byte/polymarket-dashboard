@@ -3,117 +3,113 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Polymarket Strategy Tester</title>
+<title>Polymarket Strategy Tester v2</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; padding: 2rem 1rem; }
-.container { max-width: 960px; margin: 0 auto; }
+.container { max-width: 1000px; margin: 0 auto; }
 h1 { font-size: 1.4rem; font-weight: 600; margin-bottom: 1.5rem; }
 .card { background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; border: 1px solid #e5e5e5; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-.grid4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
+.grid4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; }
 label { font-size: 13px; color: #666; display: block; margin-bottom: 6px; }
 label strong { color: #1a1a1a; }
 select { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white; }
 input[type=range] { width: 100%; accent-color: #5856d6; }
-button { width: 100%; padding: 12px; background: #5856d6; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 500; cursor: pointer; margin-top: 0.5rem; }
+.btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 0.5rem; }
+button { width: 100%; padding: 12px; background: #5856d6; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 500; cursor: pointer; }
 button:hover { background: #4a49c0; }
 button:disabled { background: #aaa; cursor: not-allowed; }
+button.secondary { background: #1a1a1a; }
+button.secondary:hover { background: #333; }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 1rem; }
 .stat { background: #f8f8f8; border-radius: 8px; padding: 1rem; text-align: center; }
 .stat-label { font-size: 12px; color: #888; margin-bottom: 4px; }
 .stat-value { font-size: 22px; font-weight: 600; }
-.positive { color: #22c55e; }
-.negative { color: #ef4444; }
-.neutral { color: #1a1a1a; }
+.positive { color: #22c55e; } .negative { color: #ef4444; } .neutral { color: #1a1a1a; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th { padding: 10px 12px; text-align: left; font-weight: 500; color: #888; border-bottom: 1px solid #eee; background: #fafafa; }
 td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
 .badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 500; }
-.badge-up { background: #dcfce7; color: #16a34a; }
-.badge-down { background: #fee2e2; color: #dc2626; }
-.badge-win { background: #dcfce7; color: #16a34a; }
-.badge-loss { background: #fee2e2; color: #dc2626; }
+.badge-up { background: #dcfce7; color: #16a34a; } .badge-down { background: #fee2e2; color: #dc2626; }
+.badge-win { background: #dcfce7; color: #16a34a; } .badge-loss { background: #fee2e2; color: #dc2626; }
 .error { background: #fee2e2; color: #dc2626; padding: 12px; border-radius: 8px; margin-bottom: 1rem; font-size: 14px; }
 .info { background: #eff6ff; color: #1d4ed8; padding: 10px 12px; border-radius: 8px; margin-bottom: 1rem; font-size: 13px; }
 .loading { text-align: center; padding: 2rem; color: #888; }
-#results { display: none; }
+#results { display: none; } #opt-results { display: none; }
+.opt-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.opt-table th { padding: 8px 10px; text-align: left; font-weight: 500; color: #888; border-bottom: 1px solid #eee; background: #fafafa; white-space: nowrap; }
+.opt-table td { padding: 7px 10px; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
+.opt-table tr:hover td { background: #f0f4ff; }
+.opt-best td { background: #f0fdf4 !important; }
 </style>
 </head>
 <body>
 <div class="container">
-<h1>Polymarket Strategy Tester</h1>
+<h1>Polymarket Strategy Tester v2</h1>
 
 <div class="card">
-  <div class="grid4" style="margin-bottom: 1rem;">
-    <div>
-      <label>Актив</label>
-      <select id="asset">
-        <option value="btc">BTC</option>
-        <option value="eth">ETH</option>
-        <option value="sol">SOL</option>
-        <option value="xrp">XRP</option>
-      </select>
-    </div>
-    <div>
-      <label>Таймфрейм</label>
-      <select id="timeframe">
-        <option value="5m">5m</option>
-        <option value="15m">15m</option>
-      </select>
-    </div>
-    <div>
-      <label>Макс. вікон</label>
+  <div class="grid4" style="margin-bottom:1rem">
+    <div><label>Актив</label>
+      <select id="asset" onchange="clearCache()">
+        <option value="btc">BTC</option><option value="eth">ETH</option>
+        <option value="sol">SOL</option><option value="xrp">XRP</option>
+      </select></div>
+    <div><label>Таймфрейм</label>
+      <select id="timeframe" onchange="onTfChange();clearCache()">
+        <option value="5m">5m</option><option value="15m">15m</option>
+      </select></div>
+    <div><label>Макс. вікон</label>
       <select id="limit">
-        <option value="100">100</option>
-        <option value="200" selected>200</option>
-        <option value="500">500</option>
+        <option value="50">50</option><option value="100">100</option>
+        <option value="200" selected>200</option><option value="500">500</option>
         <option value="1000">1000</option>
-      </select>
-    </div>
-    <div>
-      <label>Напрямок</label>
+      </select></div>
+    <div><label>Напрямок</label>
       <select id="direction">
         <option value="any">Будь-який (дешевший)</option>
-        <option value="follow">Follow BTC</option>
+        <option value="up_only">Тільки UP</option>
+        <option value="down_only">Тільки DOWN</option>
+        <option value="follow">Follow asset</option>
         <option value="contrarian">Contrarian</option>
-      </select>
-    </div>
+      </select></div>
   </div>
-
-  <div class="grid2" style="margin-bottom: 1rem;">
-    <div>
-      <label>Мін. ціна входу: <strong id="emin-v">0.75</strong></label>
-      <input type="range" id="emin" min="0.50" max="0.95" step="0.05" value="0.75">
-    </div>
-    <div>
-      <label>Макс. ціна входу: <strong id="emax-v">0.85</strong></label>
-      <input type="range" id="emax" min="0.55" max="0.99" step="0.05" value="0.85">
-    </div>
-    <div>
-      <label>Час від (sec to close): <strong id="tmin-v">0</strong>s</label>
-      <input type="range" id="tmin" min="0" max="250" step="10" value="0">
-    </div>
-    <div>
-      <label>Час до (sec to close): <strong id="tmax-v">300</strong>s</label>
-      <input type="range" id="tmax" min="30" max="300" step="10" value="300">
-    </div>
-    <div>
-      <label>Мін. delta %: <strong id="delta-v">0.00</strong>%</label>
-      <input type="range" id="delta" min="0" max="0.20" step="0.01" value="0">
-    </div>
-    <div>
-      <label>Ставка: <strong id="pos-v">$20</strong></label>
-      <input type="range" id="pos" min="5" max="100" step="5" value="20">
-    </div>
+  <div class="grid2" style="margin-bottom:1rem">
+    <div><label>Мін. ціна входу: <strong id="emin-v">0.75</strong></label>
+      <input type="range" id="emin" min="0.50" max="0.95" step="0.05" value="0.75"></div>
+    <div><label>Макс. ціна входу: <strong id="emax-v">0.85</strong></label>
+      <input type="range" id="emax" min="0.55" max="0.99" step="0.05" value="0.85"></div>
+    <div><label>Час від (sec to close): <strong id="tmin-v">160</strong>s</label>
+      <input type="range" id="tmin" min="0" max="280" step="20" value="160"></div>
+    <div><label>Час до (sec to close): <strong id="tmax-v">300</strong>s</label>
+      <input type="range" id="tmax" min="20" max="300" step="20" value="300"></div>
+    <div><label>Мін. delta %: <strong id="delta-v">0.07</strong>%</label>
+      <input type="range" id="delta" min="0" max="0.20" step="0.01" value="0.07"></div>
+    <div><label>Ставка: <strong id="pos-v">$10</strong></label>
+      <input type="range" id="pos" min="1" max="100" step="1" value="10"></div>
   </div>
-
-  <button id="run-btn" onclick="runAnalysis()">Запустити аналіз</button>
+  <div class="btn-row">
+    <button id="run-btn" onclick="runAnalysis()">Запустити аналіз</button>
+    <button id="opt-btn" class="secondary" onclick="runOptimize()">🔍 Auto-optimize</button>
+  </div>
 </div>
 
-<div id="error-msg" class="error" style="display:none;"></div>
-<div id="info-msg" class="info" style="display:none;"></div>
-<div id="loading" class="loading" style="display:none;"></div>
+<div id="error-msg" class="error" style="display:none"></div>
+<div id="info-msg" class="info" style="display:none"></div>
+<div id="loading" class="loading" style="display:none"></div>
+
+<div id="opt-results">
+  <div class="card">
+    <div style="font-size:13px;color:#888;margin-bottom:12px" id="opt-info"></div>
+    <div style="overflow-x:auto">
+      <table class="opt-table">
+        <thead><tr><th>#</th><th>Delta</th><th>Від</th><th>До</th><th>Трейдів</th><th>WR%</th><th>PnL</th><th>EV</th><th>Avg entry</th></tr></thead>
+        <tbody id="opt-body"></tbody>
+      </table>
+    </div>
+    <div style="font-size:12px;color:#888;margin-top:8px">Клікни на рядок щоб застосувати параметри і запустити аналіз</div>
+  </div>
+</div>
 
 <div id="results">
   <div class="card">
@@ -126,18 +122,9 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
       <div class="stat"><div class="stat-label">EV/dollar</div><div class="stat-value" id="s-ev">—</div></div>
     </div>
   </div>
-
-  <div class="card" style="overflow-x:auto;">
+  <div class="card" style="overflow-x:auto">
     <table>
-      <thead>
-        <tr>
-          <th>Час (UTC)</th>
-          <th>Сторона</th>
-          <th>Entry</th>
-          <th>Результат</th>
-          <th style="text-align:right">PnL</th>
-        </tr>
-      </thead>
+      <thead><tr><th>Час (UTC)</th><th>Сторона</th><th>Entry</th><th>Результат</th><th style="text-align:right">PnL</th></tr></thead>
       <tbody id="trades-body"></tbody>
     </table>
   </div>
@@ -145,200 +132,185 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
 </div>
 
 <script>
-const SUPABASE_URL = 'https://nteqbaiuindiumdnkbsc.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZXFiYWl1aW5kaXVtZG5rYnNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3MjI5NTUsImV4cCI6MjA5MTI5ODk1NX0.dsavxNCSZhJTvd1pa--W9D_myB1esbiaah-umGeWmXU';
-const PAGE_SIZE = 1000;
+const SB_URL = 'https://nteqbaiuindiumdnkbsc.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZXFiYWl1aW5kaXVtZG5rYnNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3MjI5NTUsImV4cCI6MjA5MTI5ODk1NX0.dsavxNCSZhJTvd1pa--W9D_myB1esbiaah-umGeWmXU';
 
-const sliders = [
-  ['emin','emin-v', v=>v], ['emax','emax-v', v=>v],
-  ['tmin','tmin-v', v=>v+'s'], ['tmax','tmax-v', v=>v+'s'],
-  ['delta','delta-v', v=>parseFloat(v).toFixed(2)+'%'],
-  ['pos','pos-v', v=>'$'+v]
-];
-sliders.forEach(([id,out,fmt]) => {
-  document.getElementById(id).addEventListener('input', e => {
-    document.getElementById(out).textContent = fmt(e.target.value);
+let cache = null, cacheKey = null;
+function clearCache() { cache = null; cacheKey = null; }
+
+[['emin','emin-v',v=>v],['emax','emax-v',v=>v],['tmin','tmin-v',v=>v+'s'],
+ ['tmax','tmax-v',v=>v+'s'],['delta','delta-v',v=>parseFloat(v).toFixed(2)],
+ ['pos','pos-v',v=>'$'+v]].forEach(([id,out,fmt])=>{
+  document.getElementById(id).addEventListener('input',e=>{
+    document.getElementById(out).textContent=fmt(e.target.value);
   });
 });
 
-async function fetchAllRows(asset, timeframe) {
-  const rows = [];
-  let offset = 0;
-  while (true) {
-    const url = `${SUPABASE_URL}/rest/v1/market_snapshots` +
-      `?select=window_ts,seconds_to_close,up_ask,down_ask,delta_pct,predicted_direction,final_direction` +
-      `&asset=eq.${asset}&timeframe=eq.${timeframe}&final_direction=not.is.null` +
-      `&order=window_ts.desc`;
-    const res = await fetch(url, {
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': 'Bearer ' + SUPABASE_KEY,
-        'Range': `${offset}-${offset + PAGE_SIZE - 1}`,
-        'Range-Unit': 'items',
-        'Prefer': 'count=none'
-      }
+function onTfChange() {
+  const is15=document.getElementById('timeframe').value==='15m';
+  const tmin=document.getElementById('tmin'), tmax=document.getElementById('tmax');
+  if(is15){ tmin.max=840;tmin.step=60;tmax.max=900;tmax.step=60;
+    if(+tmin.value>840)tmin.value=300; if(+tmax.value<300)tmax.value=900;
+  } else { tmin.max=280;tmin.step=20;tmax.max=300;tmax.step=20;
+    if(+tmin.value>280)tmin.value=160; if(+tmax.value>300)tmax.value=300;
+  }
+  document.getElementById('tmin-v').textContent=tmin.value+'s';
+  document.getElementById('tmax-v').textContent=tmax.value+'s';
+}
+
+async function fetchRows(asset,tf) {
+  const k=asset+'_'+tf;
+  if(cacheKey===k&&cache) return cache;
+  const rows=[];let offset=0;
+  while(true){
+    const r=await fetch(`${SB_URL}/rest/v1/market_snapshots?select=window_ts,seconds_to_close,up_ask,down_ask,delta_pct,predicted_direction,final_direction&asset=eq.${asset}&timeframe=eq.${tf}&final_direction=not.is.null&order=window_ts.desc`,{
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Range':`${offset}-${offset+999}`,'Range-Unit':'items','Prefer':'count=none'}
     });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const batch = await res.json();
-    if (!batch.length) break;
-    rows.push(...batch);
-    setLoading(`Завантажено ${rows.length} рядків...`);
-    if (batch.length < PAGE_SIZE) break;
-    offset += PAGE_SIZE;
-    if (offset > 200000) break;
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const b=await r.json(); if(!b.length) break;
+    rows.push(...b); setL(`Завантажено ${rows.length}...`);
+    if(b.length<1000) break; offset+=1000; if(offset>300000) break;
   }
-  return rows;
+  cache=rows; cacheKey=k; return rows;
 }
 
-function processRows(rows, params) {
-  const { emin, emax, tmin, tmax, minDelta, direction, limit } = params;
-  const windowMap = new Map();
-
-  for (const r of rows) {
-    const stc = parseInt(r.seconds_to_close) || 0;
-    const upA = parseFloat(r.up_ask) || 0;
-    const downA = parseFloat(r.down_ask) || 0;
-    const delta = Math.abs(parseFloat(r.delta_pct) || 0);
-
-    if (stc < tmin || stc > tmax) continue;
-    if (delta < minDelta) continue;
-    if (!r.final_direction) continue;
-
-    let side = null, price = null;
-    const pred = r.predicted_direction;
-
-    if (direction === 'follow') {
-      if (pred === 'up' && upA >= emin && upA <= emax) { side = 'up'; price = upA; }
-      else if (pred === 'down' && downA >= emin && downA <= emax) { side = 'down'; price = downA; }
-    } else if (direction === 'contrarian') {
-      if (pred === 'down' && upA >= emin && upA <= emax) { side = 'up'; price = upA; }
-      else if (pred === 'up' && downA >= emin && downA <= emax) { side = 'down'; price = downA; }
+function process(rows,{emin,emax,tmin,tmax,minDelta,direction,limit}){
+  const map=new Map();
+  for(const r of rows){
+    const stc=+r.seconds_to_close||0,upA=+r.up_ask||0,downA=+r.down_ask||0;
+    const delta=Math.abs(+r.delta_pct||0);
+    if(stc<tmin||stc>tmax||delta<minDelta||!r.final_direction) continue;
+    let side=null,price=null;
+    const pred=r.predicted_direction;
+    if(direction==='up_only'){ if(upA>=emin&&upA<=emax){side='up';price=upA;} }
+    else if(direction==='down_only'){ if(downA>=emin&&downA<=emax){side='down';price=downA;} }
+    else if(direction==='follow'){
+      if(pred==='up'&&upA>=emin&&upA<=emax){side='up';price=upA;}
+      else if(pred==='down'&&downA>=emin&&downA<=emax){side='down';price=downA;}
+    } else if(direction==='contrarian'){
+      if(pred==='down'&&upA>=emin&&upA<=emax){side='up';price=upA;}
+      else if(pred==='up'&&downA>=emin&&downA<=emax){side='down';price=downA;}
     } else {
-      const upOk = upA >= emin && upA <= emax;
-      const downOk = downA >= emin && downA <= emax;
-      if (upOk && downOk) { side = upA <= downA ? 'up' : 'down'; price = side === 'up' ? upA : downA; }
-      else if (upOk) { side = 'up'; price = upA; }
-      else if (downOk) { side = 'down'; price = downA; }
+      const uok=upA>=emin&&upA<=emax,dok=downA>=emin&&downA<=emax;
+      if(uok&&dok){side=upA<=downA?'up':'down';price=side==='up'?upA:downA;}
+      else if(uok){side='up';price=upA;} else if(dok){side='down';price=downA;}
     }
-    if (!side || !price) continue;
-
-    const wts = r.window_ts;
-    const existing = windowMap.get(wts);
-    if (!existing || stc > existing.stc) {
-      windowMap.set(wts, { wts, stc, side, price, final: r.final_direction });
-    }
+    if(!side||!price) continue;
+    const ex=map.get(r.window_ts);
+    if(!ex||stc>ex.stc) map.set(r.window_ts,{wts:r.window_ts,stc,side,price,final:r.final_direction});
   }
-
-  return [...windowMap.values()]
-    .sort((a, b) => b.wts - a.wts)
-    .slice(0, limit);
+  return [...map.values()].sort((a,b)=>b.wts-a.wts).slice(0,limit);
 }
 
-async function runAnalysis() {
-  const asset = document.getElementById('asset').value;
-  const timeframe = document.getElementById('timeframe').value;
-  const limit = parseInt(document.getElementById('limit').value);
-  const direction = document.getElementById('direction').value;
-  const emin = parseFloat(document.getElementById('emin').value);
-  const emax = parseFloat(document.getElementById('emax').value);
-  const tmin = parseInt(document.getElementById('tmin').value);
-  const tmax = parseInt(document.getElementById('tmax').value);
-  const minDelta = parseFloat(document.getElementById('delta').value);
-  const position = parseFloat(document.getElementById('pos').value);
+function stats(trades,pos){
+  if(!trades.length) return null;
+  let wins=0,pnl=0;
+  trades.forEach(t=>{const w=t.side===t.final;if(w)wins++;pnl+=w?pos*(1/t.price-1):-pos;});
+  const n=trades.length,wr=wins/n,ae=trades.reduce((s,t)=>s+t.price,0)/n;
+  return {n,wins,wr,pnl,avgPnl:pnl/n,ae,ev:wr*(1/ae-1)-(1-wr)};
+}
 
-  if (emin >= emax) { showError('Мін. ціна має бути менша за макс.'); return; }
+function setBtn(dis){['run-btn','opt-btn'].forEach(id=>document.getElementById(id).disabled=dis);}
+function setL(m){document.getElementById('loading').textContent=m;}
+function showErr(m){setBtn(false);document.getElementById('loading').style.display='none';const e=document.getElementById('error-msg');e.textContent=m;e.style.display='block';}
+function showInfo(m){const e=document.getElementById('info-msg');e.textContent=m;e.style.display='block';}
+function setCol(id,txt,pos){const e=document.getElementById(id);e.textContent=txt;e.className='stat-value '+(pos?'positive':'negative');}
 
-  document.getElementById('loading').style.display = 'block';
-  document.getElementById('results').style.display = 'none';
-  document.getElementById('error-msg').style.display = 'none';
-  document.getElementById('info-msg').style.display = 'none';
-  document.getElementById('run-btn').disabled = true;
-  setLoading('Завантаження даних...');
-
-  try {
-    const rows = await fetchAllRows(asset, timeframe);
-    setLoading(`Обробка ${rows.length} рядків...`);
-
-    const trades = processRows(rows, { emin, emax, tmin, tmax, minDelta, direction, limit });
-
-    if (!trades.length) {
-      showError('Не знайдено трейдів з такими параметрами. Спробуй розширити діапазон ціни або часу.');
-      return;
-    }
-
-    let wins = 0, totalPnl = 0;
-    const tradeRows = [];
-    for (const t of trades) {
-      const won = t.side === t.final;
-      if (won) wins++;
-      const pnl = won ? position * (1 / t.price - 1) : -position;
-      totalPnl += pnl;
-      const dt = new Date(t.wts * 1000);
-      const timeStr = dt.toISOString().slice(5, 16).replace('T', ' ');
-      tradeRows.push({ timeStr, side: t.side, price: t.price, won, pnl });
-    }
-
-    const total = trades.length;
-    const wr = wins / total;
-    const avgEntry = trades.reduce((s, t) => s + t.price, 0) / total;
-    const payoff = 1 / avgEntry - 1;
-    const ev = wr * payoff - (1 - wr);
-    const avgPnl = totalPnl / total;
-
-    document.getElementById('s-trades').textContent = total;
-    document.getElementById('s-wr').textContent = (wr * 100).toFixed(1) + '%';
-    setColored('s-pnl', (totalPnl >= 0 ? '+' : '') + '$' + totalPnl.toFixed(2), totalPnl >= 0);
-    setColored('s-avg', (avgPnl >= 0 ? '+' : '') + '$' + avgPnl.toFixed(2), avgPnl >= 0);
-    document.getElementById('s-entry').textContent = avgEntry.toFixed(4);
-    setColored('s-ev', (ev >= 0 ? '+' : '') + ev.toFixed(4), ev >= 0);
-
-    if (total < limit) {
-      showInfo(`Знайдено ${total} трейдів з ${rows.length} рядків даних. Всі доступні вікна враховано.`);
-    }
-
-    const tbody = document.getElementById('trades-body');
-    tbody.innerHTML = '';
-    for (const t of tradeRows) {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td style="color:#888">${t.timeStr}</td>
-        <td><span class="badge badge-${t.side}">${t.side.toUpperCase()}</span></td>
-        <td>${t.price.toFixed(3)}</td>
-        <td><span class="badge badge-${t.won ? 'win' : 'loss'}">${t.won ? 'WIN' : 'LOSS'}</span></td>
-        <td style="text-align:right;font-weight:500;color:${t.pnl >= 0 ? '#22c55e' : '#ef4444'}">
-          ${t.pnl >= 0 ? '+' : ''}$${t.pnl.toFixed(2)}
-        </td>`;
+async function runAnalysis(){
+  const asset=document.getElementById('asset').value,tf=document.getElementById('timeframe').value;
+  const limit=+document.getElementById('limit').value,dir=document.getElementById('direction').value;
+  const emin=+document.getElementById('emin').value,emax=+document.getElementById('emax').value;
+  const tmin=+document.getElementById('tmin').value,tmax=+document.getElementById('tmax').value;
+  const minDelta=+document.getElementById('delta').value,pos=+document.getElementById('pos').value;
+  if(emin>=emax){showErr('Мін. ціна має бути менша за макс.');return;}
+  document.getElementById('loading').style.display='block';
+  document.getElementById('results').style.display='none';
+  document.getElementById('opt-results').style.display='none';
+  document.getElementById('error-msg').style.display='none';
+  document.getElementById('info-msg').style.display='none';
+  setBtn(true); setL('Завантаження...');
+  try{
+    const rows=await fetchRows(asset,tf);
+    setL(`Обробка ${rows.length} рядків...`);
+    const trades=process(rows,{emin,emax,tmin,tmax,minDelta,direction:dir,limit});
+    if(!trades.length){showErr('Нічого не знайдено. Розшир параметри.');return;}
+    const s=stats(trades,pos);
+    document.getElementById('s-trades').textContent=s.n;
+    document.getElementById('s-wr').textContent=(s.wr*100).toFixed(1)+'%';
+    setCol('s-pnl',(s.pnl>=0?'+':'')+'$'+s.pnl.toFixed(2),s.pnl>=0);
+    setCol('s-avg',(s.avgPnl>=0?'+':'')+'$'+s.avgPnl.toFixed(2),s.avgPnl>=0);
+    document.getElementById('s-entry').textContent=s.ae.toFixed(4);
+    setCol('s-ev',(s.ev>=0?'+':'')+s.ev.toFixed(4),s.ev>=0);
+    if(s.n<limit) showInfo(`Знайдено ${s.n} трейдів з ${rows.length} рядків. Всі вікна враховано.`);
+    const tbody=document.getElementById('trades-body');tbody.innerHTML='';
+    trades.forEach(t=>{
+      const w=t.side===t.final,pnl=w?pos*(1/t.price-1):-pos;
+      const dt=new Date(t.wts*1000),ts=dt.toISOString().slice(5,16).replace('T',' ');
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td style="color:#888">${ts}</td><td><span class="badge badge-${t.side}">${t.side.toUpperCase()}</span></td><td>${t.price.toFixed(3)}</td><td><span class="badge badge-${w?'win':'loss'}">${w?'WIN':'LOSS'}</span></td><td style="text-align:right;font-weight:500;color:${pnl>=0?'#22c55e':'#ef4444'}">${pnl>=0?'+':''}$${pnl.toFixed(2)}</td>`;
       tbody.appendChild(tr);
+    });
+    document.getElementById('loading').style.display='none';
+    document.getElementById('results').style.display='block';
+  }catch(e){showErr('Помилка: '+e.message);}
+  setBtn(false);
+}
+
+async function runOptimize(){
+  const asset=document.getElementById('asset').value,tf=document.getElementById('timeframe').value;
+  const limit=+document.getElementById('limit').value,dir=document.getElementById('direction').value;
+  const emin=+document.getElementById('emin').value,emax=+document.getElementById('emax').value;
+  const pos=+document.getElementById('pos').value,is15=tf==='15m';
+  document.getElementById('loading').style.display='block';
+  document.getElementById('results').style.display='none';
+  document.getElementById('opt-results').style.display='none';
+  document.getElementById('error-msg').style.display='none';
+  document.getElementById('info-msg').style.display='none';
+  setBtn(true); setL('Завантаження...');
+  try{
+    const rows=await fetchRows(asset,tf);
+    const deltas=[]; for(let d=0;d<=0.10;d+=0.01) deltas.push(Math.round(d*100)/100);
+    const maxT=is15?900:300,step=is15?60:20;
+    const froms=[],tos=[];
+    for(let t=0;t<maxT;t+=step) froms.push(t);
+    for(let t=step;t<=maxT;t+=step) tos.push(t);
+    const combos=[];
+    for(const d of deltas) for(const f of froms) for(const t of tos) if(t>f) combos.push({d,f,t});
+    const results=[]; let done=0;
+    for(const {d,f,t} of combos){
+      const trades=process(rows,{emin,emax,tmin:f,tmax:t,minDelta:d,direction:dir,limit});
+      if(trades.length>=15){
+        const s=stats(trades,pos);
+        if(s.ev>0&&s.pnl>0) results.push({delta:d,tFrom:f,tTo:t,...s});
+      }
+      done++;
+      if(done%200===0){setL(`Оптимізація... ${Math.round(done/combos.length*100)}% (${results.length} знайдено)`);await new Promise(r=>setTimeout(r,0));}
     }
-
-    document.getElementById('loading').style.display = 'none';
-    document.getElementById('results').style.display = 'block';
-
-  } catch (err) {
-    showError('Помилка: ' + err.message);
-  }
-  document.getElementById('run-btn').disabled = false;
-}
-
-function setLoading(msg) {
-  document.getElementById('loading').textContent = msg;
-}
-function setColored(id, text, positive) {
-  const el = document.getElementById(id);
-  el.textContent = text;
-  el.className = 'stat-value ' + (positive ? 'positive' : 'negative');
-}
-function showError(msg) {
-  document.getElementById('loading').style.display = 'none';
-  document.getElementById('run-btn').disabled = false;
-  const el = document.getElementById('error-msg');
-  el.textContent = msg;
-  el.style.display = 'block';
-}
-function showInfo(msg) {
-  const el = document.getElementById('info-msg');
-  el.textContent = msg;
-  el.style.display = 'block';
+    results.sort((a,b)=>b.pnl-a.pnl);
+    const top=results.slice(0,20);
+    document.getElementById('opt-info').textContent=`Перебрано ${combos.length} комбінацій | Знайдено ${results.length} прибуткових | Топ-20`;
+    const tbody=document.getElementById('opt-body');tbody.innerHTML='';
+    if(!top.length){
+      tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:#888;padding:20px">Нічого не знайдено. Спробуй інші параметри.</td></tr>';
+    } else {
+      top.forEach((r,i)=>{
+        const tr=document.createElement('tr');
+        if(i===0) tr.className='opt-best';
+        tr.innerHTML=`<td>${i+1}</td><td>${r.delta.toFixed(2)}%</td><td>${r.tFrom}s</td><td>${r.tTo}s</td><td>${r.n}</td><td style="font-weight:500">${(r.wr*100).toFixed(1)}%</td><td style="color:#22c55e;font-weight:500">+$${r.pnl.toFixed(2)}</td><td style="color:#22c55e">+${r.ev.toFixed(4)}</td><td>${r.ae.toFixed(4)}</td>`;
+        tr.onclick=()=>{
+          document.getElementById('delta').value=r.delta;document.getElementById('delta-v').textContent=r.delta.toFixed(2);
+          document.getElementById('tmin').value=r.tFrom;document.getElementById('tmin-v').textContent=r.tFrom+'s';
+          document.getElementById('tmax').value=r.tTo;document.getElementById('tmax-v').textContent=r.tTo+'s';
+          document.getElementById('opt-results').style.display='none';
+          runAnalysis();
+        };
+        tbody.appendChild(tr);
+      });
+    }
+    document.getElementById('loading').style.display='none';
+    document.getElementById('opt-results').style.display='block';
+  }catch(e){showErr('Помилка: '+e.message);}
+  setBtn(false);
 }
 </script>
 </body>
