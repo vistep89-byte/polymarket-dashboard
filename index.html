@@ -3,12 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Polymarket Strategy Tester v2</title>
+<title>Polymarket Strategy Tester v3</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; padding: 2rem 1rem; }
-.container { max-width: 1000px; margin: 0 auto; }
+.container { max-width: 1100px; margin: 0 auto; }
 h1 { font-size: 1.4rem; font-weight: 600; margin-bottom: 1.5rem; }
+h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.75rem; }
 .card { background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; border: 1px solid #e5e5e5; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .grid4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; }
@@ -16,16 +17,18 @@ label { font-size: 13px; color: #666; display: block; margin-bottom: 6px; }
 label strong { color: #1a1a1a; }
 select { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white; }
 input[type=range] { width: 100%; accent-color: #5856d6; }
-.btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 0.5rem; }
-button { width: 100%; padding: 12px; background: #5856d6; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 500; cursor: pointer; }
+.btn-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 0.5rem; }
+button { width: 100%; padding: 12px; background: #5856d6; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
 button:hover { background: #4a49c0; }
 button:disabled { background: #aaa; cursor: not-allowed; }
 button.secondary { background: #1a1a1a; }
 button.secondary:hover { background: #333; }
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 1rem; }
-.stat { background: #f8f8f8; border-radius: 8px; padding: 1rem; text-align: center; }
-.stat-label { font-size: 12px; color: #888; margin-bottom: 4px; }
-.stat-value { font-size: 22px; font-weight: 600; }
+button.tertiary { background: #ea580c; }
+button.tertiary:hover { background: #c2410c; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-bottom: 1rem; }
+.stat { background: #f8f8f8; border-radius: 8px; padding: 0.9rem; text-align: center; }
+.stat-label { font-size: 11px; color: #888; margin-bottom: 4px; }
+.stat-value { font-size: 20px; font-weight: 600; }
 .positive { color: #22c55e; } .negative { color: #ef4444; } .neutral { color: #1a1a1a; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th { padding: 10px 12px; text-align: left; font-weight: 500; color: #888; border-bottom: 1px solid #eee; background: #fafafa; }
@@ -33,20 +36,30 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
 .badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 500; }
 .badge-up { background: #dcfce7; color: #16a34a; } .badge-down { background: #fee2e2; color: #dc2626; }
 .badge-win { background: #dcfce7; color: #16a34a; } .badge-loss { background: #fee2e2; color: #dc2626; }
+.badge-good { background: #dcfce7; color: #16a34a; } .badge-bad { background: #fee2e2; color: #dc2626; } .badge-warn { background: #fef3c7; color: #b45309; }
 .error { background: #fee2e2; color: #dc2626; padding: 12px; border-radius: 8px; margin-bottom: 1rem; font-size: 14px; }
 .info { background: #eff6ff; color: #1d4ed8; padding: 10px 12px; border-radius: 8px; margin-bottom: 1rem; font-size: 13px; }
 .loading { text-align: center; padding: 2rem; color: #888; }
-#results { display: none; } #opt-results { display: none; }
-.opt-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.opt-table th { padding: 8px 10px; text-align: left; font-weight: 500; color: #888; border-bottom: 1px solid #eee; background: #fafafa; white-space: nowrap; }
-.opt-table td { padding: 7px 10px; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
+#results { display: none; } #opt-results { display: none; } #stab-results { display: none; }
+.opt-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.opt-table th { padding: 8px 8px; text-align: left; font-weight: 500; color: #888; border-bottom: 1px solid #eee; background: #fafafa; white-space: nowrap; font-size: 11px; }
+.opt-table td { padding: 7px 8px; border-bottom: 1px solid #f0f0f0; cursor: pointer; white-space: nowrap; }
 .opt-table tr:hover td { background: #f0f4ff; }
 .opt-best td { background: #f0fdf4 !important; }
+.opt-table .div-col { border-left: 2px solid #ddd; }
+.wf-banner { background: #fff7ed; padding: 12px; border-radius: 8px; margin-bottom: 0.75rem; border: 1px solid #fed7aa; }
+.wf-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.daily-table th, .daily-table td { padding: 8px 10px; font-size: 12px; }
+.section-split { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+.section-title { font-size: 14px; font-weight: 600; color: #666; margin-bottom: 0.5rem; padding-bottom: 0.4rem; border-bottom: 2px solid #eee; }
+.section-train .section-title { border-bottom-color: #93c5fd; color: #1d4ed8; }
+.section-test .section-title { border-bottom-color: #fdba74; color: #c2410c; }
+@media (max-width: 720px) { .section-split { grid-template-columns: 1fr; } .btn-row { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
 <div class="container">
-<h1>Polymarket Strategy Tester v2</h1>
+<h1>Polymarket Strategy Tester v3 — walk-forward</h1>
 
 <div class="card">
   <div class="grid4" style="margin-bottom:1rem">
@@ -62,8 +75,8 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
     <div><label>Макс. вікон</label>
       <select id="limit">
         <option value="50">50</option><option value="100">100</option>
-        <option value="200" selected>200</option><option value="500">500</option>
-        <option value="1000">1000</option>
+        <option value="200">200</option><option value="500" selected>500</option>
+        <option value="1000">1000</option><option value="5000">5000</option>
       </select></div>
     <div><label>Напрямок</label>
       <select id="direction">
@@ -88,6 +101,7 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
     <div><label>Ставка: <strong id="pos-v">$10</strong></label>
       <input type="range" id="pos" min="1" max="100" step="1" value="10"></div>
   </div>
+
   <div style="margin-bottom:0.75rem;padding:10px 12px;background:#f0f4ff;border-radius:8px;display:flex;align-items:center;gap:10px">
     <input type="checkbox" id="regime-filter" style="width:16px;height:16px;accent-color:#5856d6;cursor:pointer">
     <label for="regime-filter" style="font-size:13px;color:#1a1a1a;cursor:pointer;margin:0">
@@ -95,9 +109,26 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
       <span style="font-size:11px;color:#666;margin-left:6px">(strong_bull→UP | weak_bull→обидва | strong_bear→DOWN | weak_bear→UP | chop→пропуск)</span>
     </label>
   </div>
+
+  <div class="wf-banner">
+    <div class="wf-row">
+      <input type="checkbox" id="walkforward" style="width:16px;height:16px;accent-color:#ea580c;cursor:pointer">
+      <label for="walkforward" style="font-size:13px;color:#1a1a1a;cursor:pointer;margin:0">
+        <strong>Walk-forward валідація</strong> — auto-optimize шукає на train, перевіряє на test (out-of-sample)
+        <span style="font-size:11px;color:#666;margin-left:6px">Чесна перевірка від overfitting</span>
+      </label>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;font-size:13px">
+      <span style="color:#1d4ed8;font-weight:500">Train: <strong id="train-v">70</strong>%</span>
+      <input type="range" id="train-pct" min="50" max="85" step="5" value="70" style="accent-color:#ea580c;flex:1">
+      <span style="color:#c2410c;font-weight:500">Test: <strong id="test-v">30</strong>%</span>
+    </div>
+  </div>
+
   <div class="btn-row">
     <button id="run-btn" onclick="runAnalysis()">Запустити аналіз</button>
     <button id="opt-btn" class="secondary" onclick="runOptimize()">🔍 Auto-optimize</button>
+    <button id="stab-btn" class="tertiary" onclick="runStability()">📊 Стабільність по днях</button>
   </div>
 </div>
 
@@ -110,11 +141,34 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
     <div style="font-size:13px;color:#888;margin-bottom:12px" id="opt-info"></div>
     <div style="overflow-x:auto">
       <table class="opt-table">
-        <thead><tr><th>#</th><th>Delta</th><th>Від</th><th>До</th><th>Трейдів</th><th>WR%</th><th>PnL</th><th>EV</th><th>Avg entry</th></tr></thead>
+        <thead><tr id="opt-head"></tr></thead>
         <tbody id="opt-body"></tbody>
       </table>
     </div>
     <div style="font-size:12px;color:#888;margin-top:8px">Клікни на рядок щоб застосувати параметри і запустити аналіз</div>
+  </div>
+</div>
+
+<div id="stab-results">
+  <div class="card">
+    <h2>Стабільність по днях</h2>
+    <div style="font-size:13px;color:#888;margin-bottom:12px" id="stab-info"></div>
+    <div style="overflow-x:auto">
+      <table class="daily-table">
+        <thead><tr><th>Дата</th><th>Трейдів</th><th>Wins</th><th>Losses</th><th>WR%</th><th>PnL</th><th>Avg entry</th><th>Streak</th></tr></thead>
+        <tbody id="stab-body"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Ризик-метрики</h2>
+    <div class="stats">
+      <div class="stat"><div class="stat-label">Max drawdown</div><div class="stat-value negative" id="r-dd">—</div></div>
+      <div class="stat"><div class="stat-label">Worst losing streak</div><div class="stat-value negative" id="r-ls">—</div></div>
+      <div class="stat"><div class="stat-label">Best winning streak</div><div class="stat-value positive" id="r-ws">—</div></div>
+      <div class="stat"><div class="stat-label">Days profitable</div><div class="stat-value neutral" id="r-dp">—</div></div>
+      <div class="stat"><div class="stat-label">WR std (по днях)</div><div class="stat-value neutral" id="r-std">—</div></div>
+    </div>
   </div>
 </div>
 
@@ -153,6 +207,12 @@ function clearCache() { cache = null; cacheKey = null; }
   });
 });
 
+document.getElementById('train-pct').addEventListener('input',e=>{
+  const v=+e.target.value;
+  document.getElementById('train-v').textContent=v;
+  document.getElementById('test-v').textContent=100-v;
+});
+
 function onTfChange() {
   const is15=document.getElementById('timeframe').value==='15m';
   const tmin=document.getElementById('tmin'), tmax=document.getElementById('tmax');
@@ -181,7 +241,6 @@ async function fetchRows(asset,tf) {
   cache=rows; cacheKey=k; return rows;
 }
 
-// Будуємо карту режимів на основі avg_delta за 48 вікон
 function buildRegimeMap(rows){
   const wmap=new Map();
   for(const r of rows){
@@ -241,7 +300,6 @@ function process(rows,{emin,emax,tmin,tmax,minDelta,direction,limit,useRegime,re
       else if(uok){side='up';price=upA;} else if(dok){side='down';price=downA;}
     }
     if(!side||!price) continue;
-    // Режим-фільтр
     if(useRegime&&regimeMap){
       const rm=regimeMap.get(r.window_ts);
       if(!rm||rm.regime==='chop') continue;
@@ -262,11 +320,74 @@ function stats(trades,pos){
   return {n,wins,wr,pnl,avgPnl:pnl/n,ae,ev:wr*(1/ae-1)-(1-wr)};
 }
 
-function setBtn(dis){['run-btn','opt-btn'].forEach(id=>document.getElementById(id).disabled=dis);}
+// Split rows into train/test by window_ts (time-based, not random)
+function splitRowsByTime(rows, trainPct) {
+  if (!rows.length) return { train: [], test: [], splitWts: null, splitDate: null };
+  const wtsSet = new Set(rows.map(r => r.window_ts));
+  const sortedWts = [...wtsSet].sort((a,b) => a-b);
+  if (sortedWts.length < 10) return { train: rows, test: [], splitWts: null, splitDate: null };
+  const splitIdx = Math.floor(sortedWts.length * trainPct);
+  const splitWts = sortedWts[splitIdx];
+  return {
+    train: rows.filter(r => r.window_ts < splitWts),
+    test: rows.filter(r => r.window_ts >= splitWts),
+    splitWts,
+    splitDate: new Date(splitWts * 1000)
+  };
+}
+
+// Compute risk metrics: drawdown, streaks, daily stability
+function riskMetrics(trades, pos) {
+  if (!trades.length) return null;
+  const sorted = [...trades].sort((a,b)=>a.wts-b.wts);
+
+  // Equity curve and drawdown
+  let eq = 0, peak = 0, maxDD = 0;
+  let ws = 0, ls = 0, bestWS = 0, worstLS = 0;
+  for (const t of sorted) {
+    const win = t.side === t.final;
+    eq += win ? pos*(1/t.price-1) : -pos;
+    if (eq > peak) peak = eq;
+    const dd = peak - eq;
+    if (dd > maxDD) maxDD = dd;
+    if (win) { ws++; ls=0; if (ws>bestWS) bestWS=ws; }
+    else { ls++; ws=0; if (ls>worstLS) worstLS=ls; }
+  }
+
+  // Daily breakdown
+  const daily = new Map();
+  for (const t of sorted) {
+    const dt = new Date(t.wts*1000);
+    const day = dt.toISOString().slice(0,10);
+    if (!daily.has(day)) daily.set(day,{n:0,wins:0,losses:0,pnl:0,entrySum:0});
+    const d = daily.get(day);
+    d.n++;
+    const win = t.side === t.final;
+    if (win) d.wins++; else d.losses++;
+    d.pnl += win ? pos*(1/t.price-1) : -pos;
+    d.entrySum += t.price;
+  }
+  const days = [...daily.entries()].map(([day,d])=>({day,...d,wr:d.wins/d.n,avgEntry:d.entrySum/d.n})).sort((a,b)=>a.day.localeCompare(b.day));
+  const daysProfitable = days.filter(d=>d.pnl>0).length;
+  const wrs = days.map(d=>d.wr);
+  const meanWr = wrs.reduce((a,b)=>a+b,0)/wrs.length;
+  const stdWr = Math.sqrt(wrs.reduce((s,w)=>s+(w-meanWr)**2,0)/wrs.length);
+
+  return { maxDD, worstLS, bestWS, days, daysProfitable, stdWr };
+}
+
+function setBtn(dis){['run-btn','opt-btn','stab-btn'].forEach(id=>document.getElementById(id).disabled=dis);}
 function setL(m){document.getElementById('loading').textContent=m;}
 function showErr(m){setBtn(false);document.getElementById('loading').style.display='none';const e=document.getElementById('error-msg');e.textContent=m;e.style.display='block';}
 function showInfo(m){const e=document.getElementById('info-msg');e.textContent=m;e.style.display='block';}
 function setCol(id,txt,pos){const e=document.getElementById(id);e.textContent=txt;e.className='stat-value '+(pos?'positive':'negative');}
+function hideAllResults(){
+  document.getElementById('results').style.display='none';
+  document.getElementById('opt-results').style.display='none';
+  document.getElementById('stab-results').style.display='none';
+  document.getElementById('error-msg').style.display='none';
+  document.getElementById('info-msg').style.display='none';
+}
 
 async function runAnalysis(){
   const asset=document.getElementById('asset').value,tf=document.getElementById('timeframe').value;
@@ -276,11 +397,8 @@ async function runAnalysis(){
   const minDelta=+document.getElementById('delta').value,pos=+document.getElementById('pos').value;
   const useRegime=document.getElementById('regime-filter').checked;
   if(emin>=emax){showErr('Мін. ціна має бути менша за макс.');return;}
+  hideAllResults();
   document.getElementById('loading').style.display='block';
-  document.getElementById('results').style.display='none';
-  document.getElementById('opt-results').style.display='none';
-  document.getElementById('error-msg').style.display='none';
-  document.getElementById('info-msg').style.display='none';
   setBtn(true); setL('Завантаження...');
   try{
     const rows=await fetchRows(asset,tf);
@@ -315,14 +433,36 @@ async function runOptimize(){
   const limit=+document.getElementById('limit').value,dir=document.getElementById('direction').value;
   const emin=+document.getElementById('emin').value,emax=+document.getElementById('emax').value;
   const pos=+document.getElementById('pos').value,is15=tf==='15m';
+  const useRegime=document.getElementById('regime-filter').checked;
+  const useWF=document.getElementById('walkforward').checked;
+  const trainPct=+document.getElementById('train-pct').value/100;
+
+  hideAllResults();
   document.getElementById('loading').style.display='block';
-  document.getElementById('results').style.display='none';
-  document.getElementById('opt-results').style.display='none';
-  document.getElementById('error-msg').style.display='none';
-  document.getElementById('info-msg').style.display='none';
   setBtn(true); setL('Завантаження...');
   try{
     const rows=await fetchRows(asset,tf);
+
+    // Build regime map ONCE on full data (regime is a real-time signal, ok to use)
+    const regimeMap = useRegime ? buildRegimeMap(rows) : null;
+
+    // Split if walk-forward enabled
+    let trainRows, testRows, splitDate=null;
+    if (useWF) {
+      const split = splitRowsByTime(rows, trainPct);
+      if (!split.test.length) {
+        showErr('Замало даних для walk-forward. Збільш ліміт або вимкни walk-forward.');
+        return;
+      }
+      trainRows = split.train;
+      testRows = split.test;
+      splitDate = split.splitDate;
+      setL(`Train: ${trainRows.length} рядків до ${splitDate.toISOString().slice(0,16).replace('T',' ')} UTC | Test: ${testRows.length} рядків після`);
+    } else {
+      trainRows = rows;
+      testRows = null;
+    }
+
     const deltas=[]; for(let d=0;d<=0.10;d+=0.01) deltas.push(Math.round(d*100)/100);
     const maxT=is15?900:300,step=is15?60:20;
     const froms=[],tos=[];
@@ -330,27 +470,79 @@ async function runOptimize(){
     for(let t=step;t<=maxT;t+=step) tos.push(t);
     const combos=[];
     for(const d of deltas) for(const f of froms) for(const t of tos) if(t>f) combos.push({d,f,t});
+
     const results=[]; let done=0;
     for(const {d,f,t} of combos){
-      const trades=process(rows,{emin,emax,tmin:f,tmax:t,minDelta:d,direction:dir,limit});
-      if(trades.length>=15){
-        const s=stats(trades,pos);
-        if(s.ev>0&&s.pnl>0) results.push({delta:d,tFrom:f,tTo:t,...s});
+      const trainTrades=process(trainRows,{emin,emax,tmin:f,tmax:t,minDelta:d,direction:dir,limit:999999,useRegime,regimeMap});
+      if(trainTrades.length>=15){
+        const sTrain=stats(trainTrades,pos);
+        if(sTrain.ev>0 && sTrain.pnl>0) {
+          const r = {delta:d,tFrom:f,tTo:t,train:sTrain};
+          if (testRows) {
+            const testTrades=process(testRows,{emin,emax,tmin:f,tmax:t,minDelta:d,direction:dir,limit:999999,useRegime,regimeMap});
+            r.test = testTrades.length >= 5 ? stats(testTrades,pos) : null;
+          }
+          results.push(r);
+        }
       }
       done++;
       if(done%200===0){setL(`Оптимізація... ${Math.round(done/combos.length*100)}% (${results.length} знайдено)`);await new Promise(r=>setTimeout(r,0));}
     }
-    results.sort((a,b)=>b.pnl-a.pnl);
+
+    // Sort by test PnL if walk-forward, else train PnL
+    if (useWF) {
+      // Only keep strategies that ALSO work on test
+      results.sort((a,b) => {
+        const ap = a.test ? a.test.pnl : -Infinity;
+        const bp = b.test ? b.test.pnl : -Infinity;
+        return bp - ap;
+      });
+    } else {
+      results.sort((a,b)=>b.train.pnl-a.train.pnl);
+    }
     const top=results.slice(0,20);
-    document.getElementById('opt-info').textContent=`Перебрано ${combos.length} комбінацій | Знайдено ${results.length} прибуткових | Топ-20`;
+
+    const wfNote = useWF ? ` | Split: ${splitDate.toISOString().slice(0,10)} | Сортовано по TEST PnL` : '';
+    document.getElementById('opt-info').textContent=`Перебрано ${combos.length} комбінацій | Знайдено ${results.length} прибуткових на train${wfNote}`;
+
+    // Build header
+    const head = document.getElementById('opt-head');
+    if (useWF) {
+      head.innerHTML = `<th>#</th><th>Delta</th><th>Від</th><th>До</th>
+        <th class="div-col" style="background:#dbeafe">Train N</th><th style="background:#dbeafe">Train WR</th><th style="background:#dbeafe">Train PnL</th>
+        <th class="div-col" style="background:#fed7aa">Test N</th><th style="background:#fed7aa">Test WR</th><th style="background:#fed7aa">Test PnL</th>
+        <th class="div-col">Verdict</th>`;
+    } else {
+      head.innerHTML = `<th>#</th><th>Delta</th><th>Від</th><th>До</th><th>Трейдів</th><th>WR%</th><th>PnL</th><th>EV</th><th>Avg entry</th>`;
+    }
+
     const tbody=document.getElementById('opt-body');tbody.innerHTML='';
     if(!top.length){
-      tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:#888;padding:20px">Нічого не знайдено. Спробуй інші параметри.</td></tr>';
+      tbody.innerHTML=`<tr><td colspan="${useWF?11:9}" style="text-align:center;color:#888;padding:20px">Нічого не знайдено. Спробуй інші параметри.</td></tr>`;
     } else {
       top.forEach((r,i)=>{
         const tr=document.createElement('tr');
         if(i===0) tr.className='opt-best';
-        tr.innerHTML=`<td>${i+1}</td><td>${r.delta.toFixed(2)}%</td><td>${r.tFrom}s</td><td>${r.tTo}s</td><td>${r.n}</td><td style="font-weight:500">${(r.wr*100).toFixed(1)}%</td><td style="color:#22c55e;font-weight:500">+$${r.pnl.toFixed(2)}</td><td style="color:#22c55e">+${r.ev.toFixed(4)}</td><td>${r.ae.toFixed(4)}</td>`;
+
+        if (useWF) {
+          const tr_ = r.train, te = r.test;
+          let verdict, vClass;
+          if (!te || te.n < 5) { verdict = '⚠️ замало test'; vClass = 'badge-warn'; }
+          else if (te.pnl <= 0) { verdict = '❌ overfit'; vClass = 'badge-bad'; }
+          else if (te.wr < tr_.wr - 0.07) { verdict = '⚠️ WR падає'; vClass = 'badge-warn'; }
+          else if (te.pnl > 0 && te.wr >= tr_.wr - 0.03) { verdict = '✅ стабільна'; vClass = 'badge-good'; }
+          else { verdict = '🟡 ок'; vClass = 'badge-warn'; }
+
+          tr.innerHTML=`<td>${i+1}</td><td>${r.delta.toFixed(2)}%</td><td>${r.tFrom}s</td><td>${r.tTo}s</td>
+            <td class="div-col">${tr_.n}</td><td>${(tr_.wr*100).toFixed(1)}%</td><td style="color:#22c55e;font-weight:500">+$${tr_.pnl.toFixed(2)}</td>
+            <td class="div-col">${te?te.n:'-'}</td><td>${te?(te.wr*100).toFixed(1)+'%':'-'}</td>
+            <td style="color:${te&&te.pnl>=0?'#22c55e':'#ef4444'};font-weight:500">${te?(te.pnl>=0?'+':'')+'$'+te.pnl.toFixed(2):'-'}</td>
+            <td class="div-col"><span class="badge ${vClass}">${verdict}</span></td>`;
+        } else {
+          const s = r.train;
+          tr.innerHTML=`<td>${i+1}</td><td>${r.delta.toFixed(2)}%</td><td>${r.tFrom}s</td><td>${r.tTo}s</td><td>${s.n}</td><td style="font-weight:500">${(s.wr*100).toFixed(1)}%</td><td style="color:#22c55e;font-weight:500">+$${s.pnl.toFixed(2)}</td><td style="color:#22c55e">+${s.ev.toFixed(4)}</td><td>${s.ae.toFixed(4)}</td>`;
+        }
+
         tr.onclick=()=>{
           document.getElementById('delta').value=r.delta;document.getElementById('delta-v').textContent=r.delta.toFixed(2);
           document.getElementById('tmin').value=r.tFrom;document.getElementById('tmin-v').textContent=r.tFrom+'s';
@@ -363,7 +555,54 @@ async function runOptimize(){
     }
     document.getElementById('loading').style.display='none';
     document.getElementById('opt-results').style.display='block';
-  }catch(e){showErr('Помилка: '+e.message);}
+  }catch(e){showErr('Помилка: '+e.message);console.error(e);}
+  setBtn(false);
+}
+
+async function runStability(){
+  const asset=document.getElementById('asset').value,tf=document.getElementById('timeframe').value;
+  const limit=999999,dir=document.getElementById('direction').value;
+  const emin=+document.getElementById('emin').value,emax=+document.getElementById('emax').value;
+  const tmin=+document.getElementById('tmin').value,tmax=+document.getElementById('tmax').value;
+  const minDelta=+document.getElementById('delta').value,pos=+document.getElementById('pos').value;
+  const useRegime=document.getElementById('regime-filter').checked;
+  hideAllResults();
+  document.getElementById('loading').style.display='block';
+  setBtn(true); setL('Завантаження...');
+  try{
+    const rows=await fetchRows(asset,tf);
+    setL(`Обробка ${rows.length} рядків...`);
+    const regimeMap=useRegime?buildRegimeMap(rows):null;
+    const trades=process(rows,{emin,emax,tmin,tmax,minDelta,direction:dir,limit,useRegime,regimeMap});
+    if(!trades.length){showErr('Нічого не знайдено. Розшир параметри.');return;}
+    const rm = riskMetrics(trades,pos);
+    const s = stats(trades,pos);
+
+    document.getElementById('stab-info').textContent =
+      `${trades.length} трейдів | загальний WR ${(s.wr*100).toFixed(1)}% | PnL ${s.pnl>=0?'+':''}$${s.pnl.toFixed(2)} | ставка $${pos}`;
+
+    document.getElementById('r-dd').textContent = '-$'+rm.maxDD.toFixed(2);
+    document.getElementById('r-ls').textContent = rm.worstLS;
+    document.getElementById('r-ws').textContent = rm.bestWS;
+    document.getElementById('r-dp').textContent = `${rm.daysProfitable}/${rm.days.length}`;
+    document.getElementById('r-std').textContent = (rm.stdWr*100).toFixed(1)+'%';
+
+    const tbody=document.getElementById('stab-body');tbody.innerHTML='';
+    rm.days.forEach(d=>{
+      const tr=document.createElement('tr');
+      const wrColor = d.wr>=0.7?'#22c55e':d.wr>=0.5?'#b45309':'#ef4444';
+      const pnlColor = d.pnl>=0?'#22c55e':'#ef4444';
+      tr.innerHTML=`<td>${d.day}</td><td>${d.n}</td><td style="color:#22c55e">${d.wins}</td><td style="color:#ef4444">${d.losses}</td>
+        <td style="font-weight:500;color:${wrColor}">${(d.wr*100).toFixed(1)}%</td>
+        <td style="font-weight:500;color:${pnlColor}">${d.pnl>=0?'+':''}$${d.pnl.toFixed(2)}</td>
+        <td>${d.avgEntry.toFixed(3)}</td>
+        <td><span class="badge ${d.wr>=0.7?'badge-good':d.wr>=0.5?'badge-warn':'badge-bad'}">${(d.wr*100).toFixed(0)}%</span></td>`;
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById('loading').style.display='none';
+    document.getElementById('stab-results').style.display='block';
+  }catch(e){showErr('Помилка: '+e.message);console.error(e);}
   setBtn(false);
 }
 </script>
