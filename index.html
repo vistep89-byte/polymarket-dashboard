@@ -88,6 +88,13 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
     <div><label>Ставка: <strong id="pos-v">$10</strong></label>
       <input type="range" id="pos" min="1" max="100" step="1" value="10"></div>
   </div>
+  <div style="margin-bottom:0.75rem;padding:10px 12px;background:#f0f4ff;border-radius:8px;display:flex;align-items:center;gap:10px">
+    <input type="checkbox" id="regime-filter" style="width:16px;height:16px;accent-color:#5856d6;cursor:pointer">
+    <label for="regime-filter" style="font-size:13px;color:#1a1a1a;cursor:pointer;margin:0">
+      <strong>Режим-фільтр</strong> — враховувати напрямок ринку за останні 4 години
+      <span style="font-size:11px;color:#666;margin-left:6px">(strong_bull→UP | weak_bull→обидва | strong_bear→DOWN | weak_bear→UP | chop→пропуск)</span>
+    </label>
+  </div>
   <div class="btn-row">
     <button id="run-btn" onclick="runAnalysis()">Запустити аналіз</button>
     <button id="opt-btn" class="secondary" onclick="runOptimize()">🔍 Auto-optimize</button>
@@ -174,7 +181,45 @@ async function fetchRows(asset,tf) {
   cache=rows; cacheKey=k; return rows;
 }
 
-function process(rows,{emin,emax,tmin,tmax,minDelta,direction,limit}){
+// Будуємо карту режимів на основі avg_delta за 48 вікон
+function buildRegimeMap(rows){
+  const wmap=new Map();
+  for(const r of rows){
+    const wts=r.window_ts;
+    if(!wmap.has(wts)) wmap.set(wts,[]);
+    wmap.get(wts).push(+r.delta_pct||0);
+  }
+  const sorted=[...wmap.entries()].sort((a,b)=>a[0]-b[0]);
+  const rm=new Map();
+  for(let i=0;i<sorted.length;i++){
+    const [wts]=sorted[i];
+    const start=Math.max(0,i-48);
+    let sum=0,cnt=0;
+    for(let j=start;j<i;j++){
+      const d=sorted[j][1];
+      sum+=d.reduce((a,b)=>a+b,0)/d.length; cnt++;
+    }
+    const avg=cnt>0?sum/cnt:0;
+    let regime;
+    if(avg>0.03) regime='strong_bull';
+    else if(avg>0.01) regime='weak_bull';
+    else if(avg<-0.03) regime='strong_bear';
+    else if(avg<-0.01) regime='weak_bear';
+    else regime='chop';
+    rm.set(wts,{regime,avg});
+  }
+  return rm;
+}
+
+function getAllowedSides(regime){
+  if(regime==='strong_bull') return ['up'];
+  if(regime==='weak_bull')   return ['up','down'];
+  if(regime==='strong_bear') return ['down'];
+  if(regime==='weak_bear')   return ['up'];
+  return [];
+}
+
+function process(rows,{emin,emax,tmin,tmax,minDelta,direction,limit,useRegime,regimeMap}){
   const map=new Map();
   for(const r of rows){
     const stc=+r.seconds_to_close||0,upA=+r.up_ask||0,downA=+r.down_ask||0;
@@ -196,6 +241,13 @@ function process(rows,{emin,emax,tmin,tmax,minDelta,direction,limit}){
       else if(uok){side='up';price=upA;} else if(dok){side='down';price=downA;}
     }
     if(!side||!price) continue;
+    // Режим-фільтр
+    if(useRegime&&regimeMap){
+      const rm=regimeMap.get(r.window_ts);
+      if(!rm||rm.regime==='chop') continue;
+      const allowed=getAllowedSides(rm.regime);
+      if(!allowed.includes(side)) continue;
+    }
     const ex=map.get(r.window_ts);
     if(!ex||stc>ex.stc) map.set(r.window_ts,{wts:r.window_ts,stc,side,price,final:r.final_direction});
   }
@@ -222,6 +274,7 @@ async function runAnalysis(){
   const emin=+document.getElementById('emin').value,emax=+document.getElementById('emax').value;
   const tmin=+document.getElementById('tmin').value,tmax=+document.getElementById('tmax').value;
   const minDelta=+document.getElementById('delta').value,pos=+document.getElementById('pos').value;
+  const useRegime=document.getElementById('regime-filter').checked;
   if(emin>=emax){showErr('Мін. ціна має бути менша за макс.');return;}
   document.getElementById('loading').style.display='block';
   document.getElementById('results').style.display='none';
@@ -232,7 +285,8 @@ async function runAnalysis(){
   try{
     const rows=await fetchRows(asset,tf);
     setL(`Обробка ${rows.length} рядків...`);
-    const trades=process(rows,{emin,emax,tmin,tmax,minDelta,direction:dir,limit});
+    const regimeMap=useRegime?buildRegimeMap(rows):null;
+    const trades=process(rows,{emin,emax,tmin,tmax,minDelta,direction:dir,limit,useRegime,regimeMap});
     if(!trades.length){showErr('Нічого не знайдено. Розшир параметри.');return;}
     const s=stats(trades,pos);
     document.getElementById('s-trades').textContent=s.n;
