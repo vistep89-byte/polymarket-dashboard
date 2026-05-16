@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Polymarket Strategy Tester v3</title>
+<title>Polymarket Strategy Tester v4</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; padding: 2rem 1rem; }
@@ -54,12 +54,22 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
 .section-title { font-size: 14px; font-weight: 600; color: #666; margin-bottom: 0.5rem; padding-bottom: 0.4rem; border-bottom: 2px solid #eee; }
 .section-train .section-title { border-bottom-color: #93c5fd; color: #1d4ed8; }
 .section-test .section-title { border-bottom-color: #fdba74; color: #c2410c; }
+.saved-banner { background: #f0fdf4; padding: 12px; border-radius: 8px; margin-bottom: 0.75rem; border: 1px solid #bbf7d0; }
+.saved-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.saved-chip { display: flex; align-items: center; gap: 6px; background: white; border: 1px solid #d1d5db; padding: 4px 10px; border-radius: 16px; font-size: 12px; }
+.saved-chip-name { font-weight: 500; }
+.saved-chip-params { color: #6b7280; font-size: 11px; }
+.saved-chip-remove { background: none; border: none; color: #ef4444; cursor: pointer; padding: 0 0 0 4px; font-size: 14px; line-height: 1; width: auto; }
+.combo-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 1rem; }
+.strat-breakdown-row { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; }
+.strat-breakdown-name { font-weight: 500; margin-bottom: 4px; }
+.strat-breakdown-stats { display: flex; gap: 12px; font-size: 12px; color: #666; flex-wrap: wrap; }
 @media (max-width: 720px) { .section-split { grid-template-columns: 1fr; } .btn-row { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
 <div class="container">
-<h1>Polymarket Strategy Tester v3 — walk-forward</h1>
+<h1>Polymarket Strategy Tester v4 — shadow backtest</h1>
 
 <div class="card">
   <div class="grid4" style="margin-bottom:1rem">
@@ -108,6 +118,20 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
       <strong>Режим-фільтр</strong> — враховувати напрямок ринку за останні 4 години
       <span style="font-size:11px;color:#666;margin-left:6px">(strong_bull→UP | weak_bull→обидва | strong_bear→DOWN | weak_bear→UP | chop→пропуск)</span>
     </label>
+  </div>
+
+  <div class="saved-banner">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div style="font-size:13px;color:#1a1a1a">
+        <strong>📊 Мої стратегії (shadow backtest)</strong>
+        <span style="font-size:11px;color:#666;margin-left:6px">— зберігай комбінації щоб порівнювати з live ботом</span>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button onclick="saveCurrentStrategy()" style="padding:6px 12px;font-size:12px;background:#16a34a;width:auto">💾 Зберегти поточну</button>
+        <button onclick="runComboBacktest()" style="padding:6px 12px;font-size:12px;background:#ea580c;width:auto" id="combo-btn">▶️ Combined backtest</button>
+      </div>
+    </div>
+    <div class="saved-list" id="saved-list"></div>
   </div>
 
   <div class="wf-banner">
@@ -172,6 +196,44 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
   </div>
 </div>
 
+<div id="combo-results" style="display:none">
+  <div class="card">
+    <h2>📊 Combined backtest — як виглядали б всі стратегії разом</h2>
+    <div style="font-size:13px;color:#888;margin-bottom:12px" id="combo-info"></div>
+    <div class="combo-stats">
+      <div class="stat"><div class="stat-label">Трейдів</div><div class="stat-value neutral" id="c-trades">—</div></div>
+      <div class="stat"><div class="stat-label">Win rate</div><div class="stat-value neutral" id="c-wr">—</div></div>
+      <div class="stat"><div class="stat-label">Total PnL</div><div class="stat-value" id="c-pnl">—</div></div>
+      <div class="stat"><div class="stat-label">Avg PnL</div><div class="stat-value" id="c-avg">—</div></div>
+      <div class="stat"><div class="stat-label">Max drawdown</div><div class="stat-value negative" id="c-dd">—</div></div>
+      <div class="stat"><div class="stat-label">Worst losing streak</div><div class="stat-value negative" id="c-ls">—</div></div>
+      <div class="stat"><div class="stat-label">Days profitable</div><div class="stat-value neutral" id="c-dp">—</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Розбивка по стратегіях</h2>
+    <div id="combo-breakdown"></div>
+  </div>
+  <div class="card">
+    <h2>Стабільність по днях (комбіновано)</h2>
+    <div style="overflow-x:auto">
+      <table class="daily-table">
+        <thead><tr><th>Дата</th><th>Трейдів</th><th>Wins</th><th>Losses</th><th>WR%</th><th>PnL</th><th>Streak</th></tr></thead>
+        <tbody id="combo-daily-body"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Останні 50 трейдів (newest first)</h2>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>Час (UTC)</th><th>Стратегія</th><th>Сторона</th><th>Entry</th><th>Результат</th><th style="text-align:right">PnL</th></tr></thead>
+        <tbody id="combo-trades-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <div id="results">
   <div class="card">
     <div class="stats">
@@ -198,6 +260,103 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 
 let cache = null, cacheKey = null;
 function clearCache() { cache = null; cacheKey = null; }
+
+// ========== Saved strategies (localStorage) ==========
+const SAVED_KEY = 'pm_saved_strategies_v1';
+
+function getSavedStrategies() {
+  try {
+    const raw = localStorage.getItem(SAVED_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function setSavedStrategies(arr) {
+  localStorage.setItem(SAVED_KEY, JSON.stringify(arr));
+  renderSavedList();
+}
+
+function getCurrentParams() {
+  return {
+    asset: document.getElementById('asset').value,
+    timeframe: document.getElementById('timeframe').value,
+    direction: document.getElementById('direction').value,
+    emin: +document.getElementById('emin').value,
+    emax: +document.getElementById('emax').value,
+    tmin: +document.getElementById('tmin').value,
+    tmax: +document.getElementById('tmax').value,
+    minDelta: +document.getElementById('delta').value,
+    pos: +document.getElementById('pos').value,
+  };
+}
+
+function strategyLabel(s) {
+  return `${s.asset.toUpperCase()} ${s.timeframe} d≥${s.minDelta.toFixed(2)}% ${s.tmin}-${s.tmax}s ${s.emin.toFixed(2)}-${s.emax.toFixed(2)}`;
+}
+
+function saveCurrentStrategy() {
+  const params = getCurrentParams();
+  const defaultName = `${params.asset.toUpperCase()} ${params.timeframe}`;
+  const name = prompt('Назва стратегії:', defaultName);
+  if (!name) return;
+  const all = getSavedStrategies();
+  // Replace if same name
+  const idx = all.findIndex(s => s.name === name);
+  const entry = { name, ...params, savedAt: new Date().toISOString() };
+  if (idx >= 0) all[idx] = entry; else all.push(entry);
+  setSavedStrategies(all);
+}
+
+function removeStrategy(name) {
+  const all = getSavedStrategies().filter(s => s.name !== name);
+  setSavedStrategies(all);
+}
+
+function applyStrategy(name) {
+  const s = getSavedStrategies().find(x => x.name === name);
+  if (!s) return;
+  document.getElementById('asset').value = s.asset;
+  document.getElementById('timeframe').value = s.timeframe;
+  document.getElementById('direction').value = s.direction;
+  document.getElementById('emin').value = s.emin;
+  document.getElementById('emin-v').textContent = s.emin;
+  document.getElementById('emax').value = s.emax;
+  document.getElementById('emax-v').textContent = s.emax;
+  document.getElementById('tmin').value = s.tmin;
+  document.getElementById('tmin-v').textContent = s.tmin + 's';
+  document.getElementById('tmax').value = s.tmax;
+  document.getElementById('tmax-v').textContent = s.tmax + 's';
+  document.getElementById('delta').value = s.minDelta;
+  document.getElementById('delta-v').textContent = s.minDelta.toFixed(2);
+  document.getElementById('pos').value = s.pos;
+  document.getElementById('pos-v').textContent = '$' + s.pos;
+  onTfChange();
+  clearCache();
+}
+
+function renderSavedList() {
+  const list = getSavedStrategies();
+  const el = document.getElementById('saved-list');
+  if (!list.length) {
+    el.innerHTML = '<div style="font-size:12px;color:#888;padding:4px 0">Поки немає збережених стратегій. Налаштуй параметри і натисни "Зберегти поточну".</div>';
+    return;
+  }
+  el.innerHTML = '';
+  list.forEach(s => {
+    const chip = document.createElement('div');
+    chip.className = 'saved-chip';
+    chip.innerHTML = `
+      <span class="saved-chip-name" style="cursor:pointer" onclick="applyStrategy('${s.name.replace(/'/g, "\\'")}')">${s.name}</span>
+      <span class="saved-chip-params">${strategyLabel(s)} • $${s.pos}</span>
+      <button class="saved-chip-remove" onclick="if(confirm('Видалити \\'${s.name.replace(/'/g, "\\'")}\\'?')) removeStrategy('${s.name.replace(/'/g, "\\'")}')">×</button>
+    `;
+    el.appendChild(chip);
+  });
+}
+
+// Render on load
+window.addEventListener('DOMContentLoaded', renderSavedList);
+// ====================================================
 
 [['emin','emin-v',v=>v],['emax','emax-v',v=>v],['tmin','tmin-v',v=>v+'s'],
  ['tmax','tmax-v',v=>v+'s'],['delta','delta-v',v=>parseFloat(v).toFixed(2)],
@@ -376,7 +535,7 @@ function riskMetrics(trades, pos) {
   return { maxDD, worstLS, bestWS, days, daysProfitable, stdWr };
 }
 
-function setBtn(dis){['run-btn','opt-btn','stab-btn'].forEach(id=>document.getElementById(id).disabled=dis);}
+function setBtn(dis){['run-btn','opt-btn','stab-btn','combo-btn'].forEach(id=>document.getElementById(id).disabled=dis);}
 function setL(m){document.getElementById('loading').textContent=m;}
 function showErr(m){setBtn(false);document.getElementById('loading').style.display='none';const e=document.getElementById('error-msg');e.textContent=m;e.style.display='block';}
 function showInfo(m){const e=document.getElementById('info-msg');e.textContent=m;e.style.display='block';}
@@ -385,6 +544,7 @@ function hideAllResults(){
   document.getElementById('results').style.display='none';
   document.getElementById('opt-results').style.display='none';
   document.getElementById('stab-results').style.display='none';
+  document.getElementById('combo-results').style.display='none';
   document.getElementById('error-msg').style.display='none';
   document.getElementById('info-msg').style.display='none';
 }
@@ -605,6 +765,191 @@ async function runStability(){
   }catch(e){showErr('Помилка: '+e.message);console.error(e);}
   setBtn(false);
 }
+
+// ========== Combined Backtest ==========
+async function runComboBacktest() {
+  const saved = getSavedStrategies();
+  if (!saved.length) {
+    showErr('Спочатку збережи хоча б одну стратегію (натисни "Зберегти поточну" з налаштованими параметрами).');
+    return;
+  }
+
+  hideAllResults();
+  document.getElementById('loading').style.display='block';
+  setBtn(true);
+
+  try {
+    // Run each strategy and collect all trades
+    const allTrades = [];  // {wts, side, price, final, pnl, stratName, asset, timeframe, pos}
+    const breakdown = []; // per strategy stats
+
+    for (let i = 0; i < saved.length; i++) {
+      const s = saved[i];
+      setL(`(${i+1}/${saved.length}) ${s.name}: завантажую ${s.asset.toUpperCase()} ${s.timeframe}...`);
+      const rows = await fetchRows(s.asset, s.timeframe);
+      setL(`(${i+1}/${saved.length}) ${s.name}: обробка ${rows.length} рядків...`);
+
+      const trades = process(rows, {
+        emin: s.emin, emax: s.emax,
+        tmin: s.tmin, tmax: s.tmax,
+        minDelta: s.minDelta,
+        direction: s.direction,
+        limit: 999999,
+        useRegime: false,
+        regimeMap: null,
+      });
+
+      // Compute trade-level PnL using strategy's pos size
+      let wins = 0, pnl = 0;
+      trades.forEach(t => {
+        const won = t.side === t.final;
+        const tPnl = won ? s.pos * (1/t.price - 1) : -s.pos;
+        if (won) wins++;
+        pnl += tPnl;
+        allTrades.push({
+          wts: t.wts,
+          side: t.side,
+          price: t.price,
+          final: t.final,
+          won,
+          pnl: tPnl,
+          stratName: s.name,
+          asset: s.asset,
+          timeframe: s.timeframe,
+          pos: s.pos,
+        });
+      });
+
+      breakdown.push({
+        name: s.name,
+        label: strategyLabel(s),
+        pos: s.pos,
+        trades: trades.length,
+        wins,
+        losses: trades.length - wins,
+        wr: trades.length ? wins / trades.length : 0,
+        pnl,
+        avgEntry: trades.length ? trades.reduce((s2,t)=>s2+t.price,0)/trades.length : 0,
+      });
+    }
+
+    if (!allTrades.length) {
+      showErr('Жодна з збережених стратегій не дала трейдів. Розширь параметри.');
+      return;
+    }
+
+    // Sort by time
+    allTrades.sort((a,b) => a.wts - b.wts);
+
+    // Compute combined metrics
+    const totalWins = allTrades.filter(t => t.won).length;
+    const totalLosses = allTrades.length - totalWins;
+    const totalPnl = allTrades.reduce((s,t) => s + t.pnl, 0);
+
+    // Drawdown and streaks
+    let eq = 0, peak = 0, maxDD = 0;
+    let ws = 0, ls = 0, worstLS = 0;
+    for (const t of allTrades) {
+      eq += t.pnl;
+      if (eq > peak) peak = eq;
+      const dd = peak - eq;
+      if (dd > maxDD) maxDD = dd;
+      if (t.won) { ws++; ls = 0; }
+      else { ls++; ws = 0; if (ls > worstLS) worstLS = ls; }
+    }
+
+    // Daily breakdown
+    const daily = new Map();
+    for (const t of allTrades) {
+      const day = new Date(t.wts*1000).toISOString().slice(0,10);
+      if (!daily.has(day)) daily.set(day, {n:0,wins:0,losses:0,pnl:0});
+      const d = daily.get(day);
+      d.n++;
+      if (t.won) d.wins++; else d.losses++;
+      d.pnl += t.pnl;
+    }
+    const days = [...daily.entries()].map(([day,d])=>({day,...d,wr:d.wins/d.n})).sort((a,b)=>a.day.localeCompare(b.day));
+    const daysProfitable = days.filter(d=>d.pnl>0).length;
+
+    // Render
+    document.getElementById('combo-info').textContent =
+      `${saved.length} стратегій | ${allTrades.length} трейдів за ${days.length} днів | ` +
+      `найраніший: ${new Date(allTrades[0].wts*1000).toISOString().slice(0,16).replace('T',' ')} UTC | ` +
+      `найпізніший: ${new Date(allTrades[allTrades.length-1].wts*1000).toISOString().slice(0,16).replace('T',' ')} UTC`;
+
+    document.getElementById('c-trades').textContent = allTrades.length;
+    document.getElementById('c-wr').textContent = (100*totalWins/allTrades.length).toFixed(1) + '%';
+    setCol('c-pnl', (totalPnl>=0?'+':'') + '$' + totalPnl.toFixed(2), totalPnl >= 0);
+    setCol('c-avg', (totalPnl/allTrades.length >= 0 ? '+' : '') + '$' + (totalPnl/allTrades.length).toFixed(2), totalPnl >= 0);
+    document.getElementById('c-dd').textContent = '-$' + maxDD.toFixed(2);
+    document.getElementById('c-ls').textContent = worstLS;
+    document.getElementById('c-dp').textContent = daysProfitable + '/' + days.length;
+
+    // Breakdown per strategy
+    const breakdownEl = document.getElementById('combo-breakdown');
+    breakdownEl.innerHTML = '';
+    breakdown.forEach(b => {
+      const row = document.createElement('div');
+      row.className = 'strat-breakdown-row';
+      const pnlColor = b.pnl >= 0 ? '#22c55e' : '#ef4444';
+      row.innerHTML = `
+        <div class="strat-breakdown-name">${b.name} <span style="color:#888;font-weight:400;font-size:11px">— ${b.label}</span></div>
+        <div class="strat-breakdown-stats">
+          <span>Трейдів: <strong>${b.trades}</strong></span>
+          <span>WR: <strong>${(b.wr*100).toFixed(1)}%</strong> (${b.wins}W / ${b.losses}L)</span>
+          <span>Avg entry: <strong>${b.avgEntry.toFixed(3)}</strong></span>
+          <span>Ставка: <strong>$${b.pos}</strong></span>
+          <span style="color:${pnlColor};font-weight:500">PnL: ${b.pnl>=0?'+':''}$${b.pnl.toFixed(2)}</span>
+        </div>
+      `;
+      breakdownEl.appendChild(row);
+    });
+
+    // Daily table
+    const dailyBody = document.getElementById('combo-daily-body');
+    dailyBody.innerHTML = '';
+    days.forEach(d => {
+      const tr = document.createElement('tr');
+      const wrColor = d.wr>=0.7 ? '#22c55e' : d.wr>=0.5 ? '#b45309' : '#ef4444';
+      const pnlColor = d.pnl >= 0 ? '#22c55e' : '#ef4444';
+      tr.innerHTML = `
+        <td>${d.day}</td>
+        <td>${d.n}</td>
+        <td style="color:#22c55e">${d.wins}</td>
+        <td style="color:#ef4444">${d.losses}</td>
+        <td style="font-weight:500;color:${wrColor}">${(d.wr*100).toFixed(1)}%</td>
+        <td style="font-weight:500;color:${pnlColor}">${d.pnl>=0?'+':''}$${d.pnl.toFixed(2)}</td>
+        <td><span class="badge ${d.wr>=0.7?'badge-good':d.wr>=0.5?'badge-warn':'badge-bad'}">${(d.wr*100).toFixed(0)}%</span></td>
+      `;
+      dailyBody.appendChild(tr);
+    });
+
+    // Last 50 trades (newest first)
+    const tradesBody = document.getElementById('combo-trades-body');
+    tradesBody.innerHTML = '';
+    [...allTrades].reverse().slice(0, 50).forEach(t => {
+      const ts = new Date(t.wts*1000).toISOString().slice(5,16).replace('T',' ');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="color:#888">${ts}</td>
+        <td style="font-size:11px;color:#666">${t.stratName}</td>
+        <td><span class="badge badge-${t.side}">${t.side.toUpperCase()}</span></td>
+        <td>${t.price.toFixed(3)}</td>
+        <td><span class="badge badge-${t.won?'win':'loss'}">${t.won?'WIN':'LOSS'}</span></td>
+        <td style="text-align:right;font-weight:500;color:${t.pnl>=0?'#22c55e':'#ef4444'}">${t.pnl>=0?'+':''}$${t.pnl.toFixed(2)}</td>
+      `;
+      tradesBody.appendChild(tr);
+    });
+
+    document.getElementById('loading').style.display='none';
+    document.getElementById('combo-results').style.display='block';
+  } catch(e) {
+    showErr('Помилка: ' + e.message);
+    console.error(e);
+  }
+  setBtn(false);
+}
+// ===============================================
 </script>
 </body>
 </html>
