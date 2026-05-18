@@ -155,6 +155,10 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
     <button id="stab-btn" class="tertiary" onclick="runStability()">📊 Стабільність по днях</button>
     <button id="kfold-btn" onclick="runKFold()" style="background:#7c3aed">🎯 K-fold (4 групи)</button>
   </div>
+  <div class="btn-row" style="margin-top:8px;grid-template-columns:1fr 1fr">
+    <button id="kfopt-quick-btn" onclick="runKFoldOptimizer(false)" style="background:linear-gradient(135deg,#7c3aed 0%,#3b82f6 100%);font-weight:600">🚀 Quick K-fold Search</button>
+    <button id="kfopt-strict-btn" onclick="runKFoldOptimizer(true)" style="background:linear-gradient(135deg,#dc2626 0%,#7c3aed 100%);font-weight:600">🔬 Strict K-fold Search</button>
+  </div>
 </div>
 
 <div id="error-msg" class="error" style="display:none"></div>
@@ -232,6 +236,55 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
         <tbody id="combo-trades-body"></tbody>
       </table>
     </div>
+  </div>
+</div>
+
+<div id="kfopt-results" style="display:none">
+  <div class="card">
+    <h2 id="kfopt-title">🚀 K-fold Optimizer — топ робастних стратегій</h2>
+    <div style="font-size:13px;color:#888;margin-bottom:8px" id="kfopt-info"></div>
+    <div style="font-size:13px;margin-bottom:12px;padding:10px;background:#faf5ff;border-radius:6px;border-left:3px solid #7c3aed" id="kfopt-explanation"></div>
+    <div class="combo-stats">
+      <div class="stat"><div class="stat-label">Перевірено</div><div class="stat-value neutral" id="kfopt-tested">—</div></div>
+      <div class="stat"><div class="stat-label">Пройшли filter</div><div class="stat-value" id="kfopt-passed">—</div></div>
+      <div class="stat"><div class="stat-label">Robust (4/4)</div><div class="stat-value positive" id="kfopt-robust">—</div></div>
+      <div class="stat"><div class="stat-label">Найкращий score</div><div class="stat-value positive" id="kfopt-best-score">—</div></div>
+      <div class="stat"><div class="stat-label">Час виконання</div><div class="stat-value neutral" id="kfopt-time">—</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Топ-15 робастних стратегій (сортування по robustness score)</h2>
+    <div style="font-size:12px;color:#666;margin-bottom:8px">
+      <strong>Score components:</strong> Profit groups (25) + Min group WR (25) + Min group PnL (25) + WR stability (25) = 100 max.
+      Натисни <strong>"Use"</strong> щоб завантажити параметри в фільтри. Натисни <strong>"🔬"</strong> для детального аналізу зі sensitivity-тестом.
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Score</th>
+            <th>Verdict</th>
+            <th>Delta</th>
+            <th>Entry</th>
+            <th>Time</th>
+            <th>Dir</th>
+            <th>Trades</th>
+            <th>WR%</th>
+            <th>PnL</th>
+            <th>Min PnL</th>
+            <th>Min WR</th>
+            <th>Spread</th>
+            <th>Дії</th>
+          </tr>
+        </thead>
+        <tbody id="kfopt-body"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card" id="kfopt-detail-card" style="display:none">
+    <h2 id="kfopt-detail-title">🔬 Детальний аналіз стратегії</h2>
+    <div id="kfopt-detail-content"></div>
   </div>
 </div>
 
@@ -581,7 +634,7 @@ function riskMetrics(trades, pos) {
   return { maxDD, worstLS, bestWS, days, daysProfitable, stdWr };
 }
 
-function setBtn(dis){['run-btn','opt-btn','stab-btn','combo-btn','kfold-btn'].forEach(id=>document.getElementById(id).disabled=dis);}
+function setBtn(dis){['run-btn','opt-btn','stab-btn','combo-btn','kfold-btn','kfopt-quick-btn','kfopt-strict-btn'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=dis;});}
 function setL(m){document.getElementById('loading').textContent=m;}
 function showErr(m){setBtn(false);document.getElementById('loading').style.display='none';const e=document.getElementById('error-msg');e.textContent=m;e.style.display='block';}
 function showInfo(m){const e=document.getElementById('info-msg');e.textContent=m;e.style.display='block';}
@@ -592,6 +645,7 @@ function hideAllResults(){
   document.getElementById('stab-results').style.display='none';
   document.getElementById('combo-results').style.display='none';
   document.getElementById('kfold-results').style.display='none';
+  document.getElementById('kfopt-results').style.display='none';
   document.getElementById('error-msg').style.display='none';
   document.getElementById('info-msg').style.display='none';
 }
@@ -1198,6 +1252,498 @@ async function runKFold() {
     console.error(e);
   }
   setBtn(false);
+}
+// ===============================================
+
+// ========== K-FOLD OPTIMIZER (Quick + Strict) ==========
+
+// Параметрна сітка для пошуку
+const KFOPT_GRID = {
+  delta:     [0.05, 0.07, 0.10, 0.13],
+  emin:      [0.70, 0.75, 0.78, 0.82],
+  emax:      [0.85, 0.90, 0.95],
+  tmin:      [10, 30, 60, 120],
+  tmax:      [200, 240, 300],
+  direction: ['follow', 'contrarian', 'cheaper']
+};
+
+// Маппінг direction внутрішнього → людського
+const DIR_LABEL = {
+  'follow': 'Bullish',
+  'contrarian': 'Contrarian',
+  'cheaper': 'Будь-який'
+};
+
+// Жорсткі фільтри для strict mode
+const KFOPT_STRICT_FILTERS = {
+  minTradesPerGroup: 30,   // мінімум трейдів на групу для статистичної значущості
+  minWorstGroupPnL: 5,     // мінімум $5 на найгіршій групі (при ставці $10)
+  maxAvgEntry: 0.92,       // не дозволяти стратегії що тільки на cheap entries
+  minProfitGroups: 4,      // 4/4 must be profit
+};
+
+// Розрахунок robustness score (0-100)
+function calcRobustnessScore(groups) {
+  if (groups.length !== 4 || groups.some(g => g.trades === 0)) return 0;
+
+  const profitGroups = groups.filter(g => g.pnl > 0).length;
+  const wrs = groups.map(g => g.wr);
+  const pnls = groups.map(g => g.pnl);
+  const minWR = Math.min(...wrs);
+  const maxWR = Math.max(...wrs);
+  const minPnL = Math.min(...pnls);
+
+  // 1. Profit groups: 25, 18, 12, 6, 0
+  const sProfit = [0, 6, 12, 18, 25][profitGroups];
+
+  // 2. Min WR: 25 * (minWR - 0.5) / 0.5, capped 0-25
+  const sMinWR = Math.max(0, Math.min(25, 25 * (minWR - 0.50) / 0.50));
+
+  // 3. Min PnL: 0 if < 0, 25 if > $30, linear in between (assuming $10 bet)
+  let sMinPnL;
+  if (minPnL < 0) sMinPnL = 0;
+  else if (minPnL > 30) sMinPnL = 25;
+  else sMinPnL = 25 * minPnL / 30;
+
+  // 4. WR stability: 25 if spread=0, 0 if spread > 0.20
+  const spread = maxWR - minWR;
+  const sStability = Math.max(0, 25 * (0.20 - spread) / 0.20);
+
+  return Math.round(sProfit + sMinWR + sMinPnL + sStability);
+}
+
+// Запуск backtest для однієї конфігурації, повертає {strategy, groups, score}
+function runOneKFoldBacktest(rows, cfg, pos) {
+  const trades = process(rows, cfg);
+  if (trades.length < 40) return null;
+
+  trades.sort((a,b) => a.wts - b.wts);
+  const earliest = trades[0].wts;
+  const latest = trades[trades.length-1].wts;
+  const groupSize = (latest - earliest) / 4;
+
+  const groups = [[], [], [], []];
+  for (const t of trades) {
+    let i = Math.floor((t.wts - earliest) / groupSize);
+    if (i >= 4) i = 3;
+    groups[i].push(t);
+  }
+
+  const groupStats = groups.map(g => {
+    if (g.length === 0) return { trades: 0, wr: 0, pnl: 0, avgEntry: 0, maxDD: 0 };
+    let wins = 0, pnl = 0;
+    const tradesPnl = [];
+    for (const t of g) {
+      const won = t.side === t.final;
+      if (won) wins++;
+      const p = won ? pos * (1/t.price - 1) : -pos;
+      pnl += p;
+      tradesPnl.push(p);
+    }
+    let eq = 0, peak = 0, maxDD = 0;
+    for (const p of tradesPnl) {
+      eq += p;
+      if (eq > peak) peak = eq;
+      if (peak - eq > maxDD) maxDD = peak - eq;
+    }
+    return {
+      trades: g.length,
+      wins,
+      losses: g.length - wins,
+      wr: wins / g.length,
+      pnl,
+      avgEntry: g.reduce((s,t)=>s+t.price,0) / g.length,
+      maxDD,
+      dateStart: new Date(g[0].wts * 1000).toISOString().slice(0,10),
+      dateEnd: new Date(g[g.length-1].wts * 1000).toISOString().slice(0,10),
+    };
+  });
+
+  const totalWins = trades.filter(t => t.side === t.final).length;
+  const totalPnL = groupStats.reduce((s,g) => s + g.pnl, 0);
+  const overallAvgEntry = trades.reduce((s,t)=>s+t.price,0) / trades.length;
+  const score = calcRobustnessScore(groupStats);
+
+  return {
+    cfg, score, groups: groupStats,
+    totalTrades: trades.length,
+    totalWins,
+    totalWR: totalWins / trades.length,
+    totalPnL,
+    overallAvgEntry,
+    minPnL: Math.min(...groupStats.map(g=>g.pnl)),
+    minWR: Math.min(...groupStats.map(g=>g.wr)),
+    maxWR: Math.max(...groupStats.map(g=>g.wr)),
+    spread: Math.max(...groupStats.map(g=>g.wr)) - Math.min(...groupStats.map(g=>g.wr)),
+    profitGroups: groupStats.filter(g => g.pnl > 0).length,
+  };
+}
+
+// Чи проходить strict filters
+function passesStrictFilters(result) {
+  if (!result) return false;
+  const F = KFOPT_STRICT_FILTERS;
+  if (result.profitGroups < F.minProfitGroups) return false;
+  if (result.groups.some(g => g.trades < F.minTradesPerGroup)) return false;
+  if (result.minPnL < F.minWorstGroupPnL) return false;
+  if (result.overallAvgEntry > F.maxAvgEntry) return false;
+  return true;
+}
+
+// Зберігаємо results для дій з UI
+let LAST_KFOPT_RESULTS = [];
+
+async function runKFoldOptimizer(strict) {
+  hideAllResults();
+  document.getElementById('loading').style.display='block';
+  setBtn(true);
+
+  const startTime = Date.now();
+  const asset = document.getElementById('asset').value;
+  const tf = document.getElementById('timeframe').value;
+  const pos = +document.getElementById('pos').value;
+
+  try {
+    setL('Завантажую дані...');
+    const rows = await fetchRows(asset, tf);
+    setL('Підготовка...');
+
+    // Generate all valid combinations
+    const combos = [];
+    for (const delta of KFOPT_GRID.delta)
+      for (const emin of KFOPT_GRID.emin)
+        for (const emax of KFOPT_GRID.emax)
+          if (emin < emax)
+            for (const tmin of KFOPT_GRID.tmin)
+              for (const tmax of KFOPT_GRID.tmax)
+                if (tmin < tmax)
+                  for (const direction of KFOPT_GRID.direction) {
+                    combos.push({
+                      minDelta: delta,
+                      emin, emax, tmin, tmax, direction,
+                      limit: 999999,
+                      useRegime: false,
+                      regimeMap: null,
+                    });
+                  }
+
+    setL(`Обробка ${combos.length} комбінацій (0%)...`);
+
+    const allResults = [];
+    let tested = 0;
+    let passed = 0;
+    let robust = 0;
+
+    for (let i = 0; i < combos.length; i++) {
+      const res = runOneKFoldBacktest(rows, combos[i], pos);
+      tested++;
+      if (res) {
+        const isRobust = res.profitGroups === 4;
+        const passesStrict = passesStrictFilters(res);
+        if (isRobust) robust++;
+
+        if (strict) {
+          if (passesStrict) {
+            allResults.push(res);
+            passed++;
+          }
+        } else {
+          // Quick: keep all that completed backtest
+          allResults.push(res);
+          passed++;
+        }
+      }
+
+      // UI update every 50 iterations
+      if (i % 50 === 0 || i === combos.length - 1) {
+        const pct = Math.round(100 * (i+1) / combos.length);
+        setL(`Обробка ${combos.length} комбінацій (${pct}%) | пройшли: ${passed} | robust: ${robust}`);
+        await new Promise(r => setTimeout(r, 0)); // yield to browser
+      }
+    }
+
+    // Sort by score desc
+    allResults.sort((a,b) => b.score - a.score);
+    const top = allResults.slice(0, 15);
+
+    LAST_KFOPT_RESULTS = top;
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+    // Render header
+    document.getElementById('kfopt-title').textContent = strict
+      ? '🔬 Strict K-fold Optimizer — топ робастних стратегій (тільки ті що пройшли жорсткі фільтри)'
+      : '🚀 Quick K-fold Optimizer — топ робастних стратегій';
+
+    document.getElementById('kfopt-info').textContent =
+      `${asset.toUpperCase()} ${tf} | ставка $${pos} | перебрано ${combos.length} комбінацій | час: ${elapsed}s`;
+
+    document.getElementById('kfopt-explanation').innerHTML = strict
+      ? `<strong>Жорсткий пошук.</strong> Показано тільки стратегії що пройшли ВСІ фільтри: 
+         (1) 4/4 групи в плюсі, 
+         (2) мінімум ${KFOPT_STRICT_FILTERS.minTradesPerGroup} трейдів на групу, 
+         (3) PnL ≥ $${KFOPT_STRICT_FILTERS.minWorstGroupPnL} на найгіршій групі, 
+         (4) avg entry ≤ ${KFOPT_STRICT_FILTERS.maxAvgEntry}. 
+         Якщо нічого не пройшло — стратегія потребує переробки.`
+      : `<strong>Швидкий пошук.</strong> Показано топ-15 стратегій за robustness score 
+         (sortування: profit groups + min WR + min PnL + WR stability). 
+         Натисни 🔬 поруч зі стратегією щоб перевірити її через жорсткі фільтри + sensitivity analysis.`;
+
+    document.getElementById('kfopt-tested').textContent = combos.length;
+    document.getElementById('kfopt-passed').textContent = passed;
+    document.getElementById('kfopt-passed').style.color = passed > 0 ? '#22c55e' : '#ef4444';
+    document.getElementById('kfopt-robust').textContent = robust;
+    document.getElementById('kfopt-robust').style.color = robust > 0 ? '#22c55e' : '#888';
+    document.getElementById('kfopt-best-score').textContent = top.length > 0 ? top[0].score : '—';
+    document.getElementById('kfopt-time').textContent = elapsed + 's';
+
+    // Render table
+    const tbody = document.getElementById('kfopt-body');
+    tbody.innerHTML = '';
+
+    if (top.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="14" style="text-align:center;color:#888;padding:30px">
+        ${strict ? 'Жодна стратегія не пройшла жорсткі фільтри. Спробуй Quick search щоб побачити що є взагалі.' : 'Не знайдено стратегій з достатньою кількістю трейдів.'}
+      </td></tr>`;
+    } else {
+      top.forEach((r, idx) => {
+        const tr = document.createElement('tr');
+        const verdictHtml = r.profitGroups === 4 ? '<span style="color:#22c55e;font-weight:500">✅ 4/4</span>'
+          : r.profitGroups === 3 ? '<span style="color:#eab308">🟡 3/4</span>'
+          : r.profitGroups === 2 ? '<span style="color:#f97316">⚠️ 2/4</span>'
+          : '<span style="color:#ef4444">🔴 ' + r.profitGroups + '/4</span>';
+        const wrColor = r.totalWR >= 0.80 ? '#22c55e' : r.totalWR >= 0.70 ? '#eab308' : '#ef4444';
+        const pnlColor = r.totalPnL >= 0 ? '#22c55e' : '#ef4444';
+        const minPnlColor = r.minPnL >= 0 ? '#22c55e' : '#ef4444';
+        const scoreColor = r.score >= 80 ? '#22c55e' : r.score >= 60 ? '#eab308' : r.score >= 40 ? '#f97316' : '#ef4444';
+
+        tr.innerHTML = `
+          <td>${idx + 1}</td>
+          <td style="font-weight:600;color:${scoreColor}">${r.score}</td>
+          <td>${verdictHtml}</td>
+          <td>≥${r.cfg.minDelta}%</td>
+          <td style="font-size:12px">${r.cfg.emin}-${r.cfg.emax}</td>
+          <td style="font-size:12px">${r.cfg.tmin}-${r.cfg.tmax}s</td>
+          <td style="font-size:11px">${DIR_LABEL[r.cfg.direction]}</td>
+          <td>${r.totalTrades}</td>
+          <td style="color:${wrColor};font-weight:500">${(r.totalWR*100).toFixed(1)}%</td>
+          <td style="color:${pnlColor};font-weight:500">${r.totalPnL>=0?'+':''}$${r.totalPnL.toFixed(2)}</td>
+          <td style="color:${minPnlColor};font-weight:500">${r.minPnL>=0?'+':''}$${r.minPnL.toFixed(2)}</td>
+          <td>${(r.minWR*100).toFixed(1)}%</td>
+          <td>${(r.spread*100).toFixed(1)}п.п.</td>
+          <td style="white-space:nowrap">
+            <button onclick="useKFoptStrategy(${idx})" style="padding:4px 8px;font-size:11px;background:#22c55e;color:white;border:none;border-radius:4px;cursor:pointer">Use</button>
+            <button onclick="detailKFoptStrategy(${idx})" style="padding:4px 8px;font-size:11px;background:#7c3aed;color:white;border:none;border-radius:4px;cursor:pointer">🔬</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.getElementById('loading').style.display='none';
+    document.getElementById('kfopt-results').style.display='block';
+  } catch (e) {
+    showErr('Помилка: ' + e.message);
+    console.error(e);
+  }
+  setBtn(false);
+}
+
+// Завантажити параметри в фільтри зверху
+function useKFoptStrategy(idx) {
+  const r = LAST_KFOPT_RESULTS[idx];
+  if (!r) return;
+  document.getElementById('emin').value = r.cfg.emin;
+  document.getElementById('emax').value = r.cfg.emax;
+  document.getElementById('tmin').value = r.cfg.tmin;
+  document.getElementById('tmax').value = r.cfg.tmax;
+  document.getElementById('delta').value = r.cfg.minDelta;
+  document.getElementById('direction').value = r.cfg.direction;
+  // Update slider labels
+  ['emin','emax','tmin','tmax','delta'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.oninput) el.oninput();
+    const ev = new Event('input', {bubbles:true});
+    if (el) el.dispatchEvent(ev);
+  });
+  alert(`Параметри завантажено: delta≥${r.cfg.minDelta}%, ${r.cfg.emin}-${r.cfg.emax}, ${r.cfg.tmin}-${r.cfg.tmax}s, ${DIR_LABEL[r.cfg.direction]}.\nТепер натисни "K-fold (4 групи)" або "Запустити аналіз".`);
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+// Детальний аналіз стратегії — sensitivity check + strict filters checklist
+async function detailKFoptStrategy(idx) {
+  const r = LAST_KFOPT_RESULTS[idx];
+  if (!r) return;
+
+  const card = document.getElementById('kfopt-detail-card');
+  const content = document.getElementById('kfopt-detail-content');
+  card.style.display = 'block';
+  card.scrollIntoView({behavior:'smooth', block:'start'});
+
+  content.innerHTML = '<div style="padding:20px;color:#888">Запускаю sensitivity analysis...</div>';
+
+  const asset = document.getElementById('asset').value;
+  const tf = document.getElementById('timeframe').value;
+  const pos = +document.getElementById('pos').value;
+  const rows = await fetchRows(asset, tf);
+
+  // Strict filters checklist
+  const F = KFOPT_STRICT_FILTERS;
+  const checks = [
+    {
+      name: `4/4 групи прибуткові`,
+      pass: r.profitGroups >= F.minProfitGroups,
+      actual: `${r.profitGroups}/4`,
+      required: `≥${F.minProfitGroups}/4`,
+    },
+    {
+      name: `Мін. трейдів на групі`,
+      pass: r.groups.every(g => g.trades >= F.minTradesPerGroup),
+      actual: `${Math.min(...r.groups.map(g => g.trades))}`,
+      required: `≥${F.minTradesPerGroup}`,
+    },
+    {
+      name: `PnL найгіршої групи`,
+      pass: r.minPnL >= F.minWorstGroupPnL,
+      actual: `$${r.minPnL.toFixed(2)}`,
+      required: `≥$${F.minWorstGroupPnL}`,
+    },
+    {
+      name: `Avg entry price`,
+      pass: r.overallAvgEntry <= F.maxAvgEntry,
+      actual: r.overallAvgEntry.toFixed(3),
+      required: `≤${F.maxAvgEntry}`,
+    },
+  ];
+
+  // Sensitivity analysis: невеликі perturbations кожного параметру
+  const sensitivityTests = [];
+  const perturbations = [
+    { name: 'delta -0.02', cfg: {...r.cfg, minDelta: Math.max(0.01, r.cfg.minDelta - 0.02)}},
+    { name: 'delta +0.02', cfg: {...r.cfg, minDelta: r.cfg.minDelta + 0.02}},
+    { name: 'emin -0.03', cfg: {...r.cfg, emin: Math.max(0.50, r.cfg.emin - 0.03)}},
+    { name: 'emin +0.03', cfg: {...r.cfg, emin: Math.min(r.cfg.emax - 0.02, r.cfg.emin + 0.03)}},
+    { name: 'emax -0.03', cfg: {...r.cfg, emax: Math.max(r.cfg.emin + 0.02, r.cfg.emax - 0.03)}},
+    { name: 'emax +0.03', cfg: {...r.cfg, emax: Math.min(0.99, r.cfg.emax + 0.03)}},
+    { name: 'tmin -30s', cfg: {...r.cfg, tmin: Math.max(0, r.cfg.tmin - 30)}},
+    { name: 'tmin +30s', cfg: {...r.cfg, tmin: Math.min(r.cfg.tmax - 10, r.cfg.tmin + 30)}},
+  ];
+
+  for (const p of perturbations) {
+    const res = runOneKFoldBacktest(rows, p.cfg, pos);
+    sensitivityTests.push({
+      name: p.name,
+      score: res ? res.score : 0,
+      pnl: res ? res.totalPnL : 0,
+      wr: res ? res.totalWR : 0,
+      trades: res ? res.totalTrades : 0,
+      profitGroups: res ? res.profitGroups : 0,
+      delta: res ? res.score - r.score : -r.score,
+    });
+  }
+
+  const allChecksPass = checks.every(c => c.pass);
+  const sensitivityStable = sensitivityTests.filter(t => Math.abs(t.delta) <= 10).length >= 6;
+
+  let html = `
+    <div style="font-size:14px;margin-bottom:16px">
+      <strong>Стратегія:</strong> delta≥${r.cfg.minDelta}% | ${r.cfg.emin}-${r.cfg.emax} | ${r.cfg.tmin}-${r.cfg.tmax}s | ${DIR_LABEL[r.cfg.direction]} |
+      <strong>Score: ${r.score}/100</strong>
+    </div>
+
+    <h3 style="margin-top:16px;margin-bottom:8px">📋 Strict Filters Checklist</h3>
+    <table style="margin-bottom:20px">
+      <thead><tr><th>Перевірка</th><th>Required</th><th>Actual</th><th>Status</th></tr></thead>
+      <tbody>
+  `;
+  for (const c of checks) {
+    html += `<tr>
+      <td>${c.name}</td>
+      <td>${c.required}</td>
+      <td style="font-weight:500">${c.actual}</td>
+      <td>${c.pass ? '<span style="color:#22c55e;font-weight:500">✅ PASS</span>' : '<span style="color:#ef4444;font-weight:500">❌ FAIL</span>'}</td>
+    </tr>`;
+  }
+  html += `</tbody></table>
+
+    <div style="padding:10px;background:${allChecksPass ? '#f0fdf4' : '#fef2f2'};border-radius:6px;margin-bottom:20px;border-left:3px solid ${allChecksPass ? '#22c55e' : '#ef4444'}">
+      ${allChecksPass
+        ? '<strong style="color:#22c55e">✅ Стратегія проходить ВСІ жорсткі фільтри</strong> — можна вважати валідною для розгляду торгівлі.'
+        : '<strong style="color:#ef4444">❌ Стратегія НЕ проходить strict filters</strong> — є слабкі місця. Дивись checklist.'}
+    </div>
+
+    <h3 style="margin-top:16px;margin-bottom:8px">🎯 Sensitivity Analysis</h3>
+    <div style="font-size:12px;color:#666;margin-bottom:8px">
+      Невеликі зміни параметрів — як змінюється score? Якщо невелика зміна сильно ламає результат — це overfit.
+    </div>
+    <table style="margin-bottom:20px">
+      <thead><tr><th>Перевірка</th><th>Score</th><th>Δ Score</th><th>Trades</th><th>WR%</th><th>PnL</th><th>Profit groups</th></tr></thead>
+      <tbody>
+        <tr style="background:#faf5ff;font-weight:500">
+          <td>Original</td>
+          <td>${r.score}</td>
+          <td>—</td>
+          <td>${r.totalTrades}</td>
+          <td>${(r.totalWR*100).toFixed(1)}%</td>
+          <td style="color:${r.totalPnL>=0?'#22c55e':'#ef4444'}">${r.totalPnL>=0?'+':''}$${r.totalPnL.toFixed(2)}</td>
+          <td>${r.profitGroups}/4</td>
+        </tr>
+  `;
+  for (const t of sensitivityTests) {
+    const dColor = Math.abs(t.delta) <= 5 ? '#22c55e' : Math.abs(t.delta) <= 15 ? '#eab308' : '#ef4444';
+    const dSign = t.delta >= 0 ? '+' : '';
+    html += `<tr>
+      <td style="font-size:12px">${t.name}</td>
+      <td>${t.score}</td>
+      <td style="color:${dColor};font-weight:500">${dSign}${t.delta}</td>
+      <td>${t.trades}</td>
+      <td>${(t.wr*100).toFixed(1)}%</td>
+      <td style="color:${t.pnl>=0?'#22c55e':'#ef4444'}">${t.pnl>=0?'+':''}$${t.pnl.toFixed(2)}</td>
+      <td>${t.profitGroups}/4</td>
+    </tr>`;
+  }
+  html += `</tbody></table>
+
+    <div style="padding:10px;background:${sensitivityStable ? '#f0fdf4' : '#fffbeb'};border-radius:6px;border-left:3px solid ${sensitivityStable ? '#22c55e' : '#eab308'}">
+      ${sensitivityStable
+        ? '<strong style="color:#22c55e">✅ Стратегія СТАБІЛЬНА до невеликих змін параметрів</strong> — це означає що edge реальний, а не overfit на конкретні значення.'
+        : '<strong style="color:#eab308">🟡 Стратегія ЧУТЛИВА до параметрів</strong> — невеликі зміни сильно впливають на результат. Можливий overfit. Будь обережний з реальною торгівлею.'}
+    </div>
+
+    <h3 style="margin-top:20px;margin-bottom:8px">📊 Розбивка по групах</h3>
+    <table>
+      <thead><tr><th>Група</th><th>Період</th><th>Трейдів</th><th>WR%</th><th>PnL</th><th>Avg entry</th><th>Max DD</th></tr></thead>
+      <tbody>
+  `;
+  r.groups.forEach((g, i) => {
+    if (g.trades === 0) return;
+    const wrCol = g.wr >= 0.80 ? '#22c55e' : g.wr >= 0.65 ? '#eab308' : '#ef4444';
+    const pnlCol = g.pnl >= 0 ? '#22c55e' : '#ef4444';
+    html += `<tr>
+      <td><strong>${i+1}</strong></td>
+      <td style="font-size:11px">${g.dateStart}<br>${g.dateEnd}</td>
+      <td>${g.trades} <span style="color:#888;font-size:11px">(${g.wins}W/${g.losses}L)</span></td>
+      <td style="color:${wrCol};font-weight:500">${(g.wr*100).toFixed(1)}%</td>
+      <td style="color:${pnlCol};font-weight:500">${g.pnl>=0?'+':''}$${g.pnl.toFixed(2)}</td>
+      <td>${g.avgEntry.toFixed(3)}</td>
+      <td style="color:#ef4444">-$${g.maxDD.toFixed(2)}</td>
+    </tr>`;
+  });
+  html += `</tbody></table>
+
+    <div style="margin-top:20px;padding:12px;background:#f9fafb;border-radius:6px;font-size:13px;line-height:1.6">
+      <strong>Підсумок:</strong>
+      ${allChecksPass && sensitivityStable
+        ? '<span style="color:#22c55e">Ця стратегія проходить ВСІ перевірки і стабільна до perturbations. Це найкращий сигнал що edge реальний. Можна розглядати для торгівлі з малою ставкою.</span>'
+        : allChecksPass && !sensitivityStable
+        ? '<span style="color:#eab308">Стратегія проходить filters але чутлива до параметрів. Підозра на overfit — потрібна додаткова перевірка на новіших даних.</span>'
+        : !allChecksPass && sensitivityStable
+        ? '<span style="color:#eab308">Стратегія стабільна але не проходить деякі strict filters. Дивись чого саме не вистачає в checklist вище.</span>'
+        : '<span style="color:#ef4444">Стратегія не проходить ні filters, ні sensitivity. Не варто торгувати на ній — шукай кращу.</span>'
+      }
+    </div>
+  `;
+  content.innerHTML = html;
 }
 // ===============================================
 </script>
