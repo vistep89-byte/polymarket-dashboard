@@ -1464,6 +1464,11 @@ let LAST_KFOPT_ADAPTIVE_FILTERS = null;
 
 async function runKFoldOptimizer(strict) {
   hideAllResults();
+  // Reset stale sub-cards from previous runs
+  const stopCard = document.getElementById('stoploss-test-card');
+  const detailCard = document.getElementById('kfopt-detail-card');
+  if (stopCard) stopCard.style.display = 'none';
+  if (detailCard) detailCard.style.display = 'none';
   document.getElementById('loading').style.display='block';
   setBtn(true);
 
