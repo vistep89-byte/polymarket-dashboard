@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Polymarket Strategy Tester v4</title>
+<title>Polymarket Strategy Tester v5</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; padding: 2rem 1rem; }
@@ -17,7 +17,7 @@ label { font-size: 13px; color: #666; display: block; margin-bottom: 6px; }
 label strong { color: #1a1a1a; }
 select { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white; }
 input[type=range] { width: 100%; accent-color: #5856d6; }
-.btn-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 0.5rem; }
+.btn-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-top: 0.5rem; }
 button { width: 100%; padding: 12px; background: #5856d6; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
 button:hover { background: #4a49c0; }
 button:disabled { background: #aaa; cursor: not-allowed; }
@@ -69,7 +69,7 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
 </head>
 <body>
 <div class="container">
-<h1>Polymarket Strategy Tester v4 — shadow backtest</h1>
+<h1>Polymarket Strategy Tester v5 — k-fold validation</h1>
 
 <div class="card">
   <div class="grid4" style="margin-bottom:1rem">
@@ -99,9 +99,9 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
   </div>
   <div class="grid2" style="margin-bottom:1rem">
     <div><label>Мін. ціна входу: <strong id="emin-v">0.75</strong></label>
-      <input type="range" id="emin" min="0.15" max="0.95" step="0.05" value="0.75"></div>
+      <input type="range" id="emin" min="0.50" max="0.95" step="0.05" value="0.75"></div>
     <div><label>Макс. ціна входу: <strong id="emax-v">0.85</strong></label>
-      <input type="range" id="emax" min="0.20" max="0.99" step="0.05" value="0.85"></div>
+      <input type="range" id="emax" min="0.55" max="0.99" step="0.05" value="0.85"></div>
     <div><label>Час від (sec to close): <strong id="tmin-v">160</strong>s</label>
       <input type="range" id="tmin" min="0" max="280" step="20" value="160"></div>
     <div><label>Час до (sec to close): <strong id="tmax-v">300</strong>s</label>
@@ -153,6 +153,7 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
     <button id="run-btn" onclick="runAnalysis()">Запустити аналіз</button>
     <button id="opt-btn" class="secondary" onclick="runOptimize()">🔍 Auto-optimize</button>
     <button id="stab-btn" class="tertiary" onclick="runStability()">📊 Стабільність по днях</button>
+    <button id="kfold-btn" onclick="runKFold()" style="background:#7c3aed">🎯 K-fold (4 групи)</button>
   </div>
 </div>
 
@@ -231,6 +232,51 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
         <tbody id="combo-trades-body"></tbody>
       </table>
     </div>
+  </div>
+</div>
+
+<div id="kfold-results" style="display:none">
+  <div class="card">
+    <h2>🎯 K-fold validation — поточна стратегія на 4 групах</h2>
+    <div style="font-size:13px;color:#888;margin-bottom:8px" id="kfold-info"></div>
+    <div style="font-size:13px;margin-bottom:12px;padding:10px;background:#f5f3ff;border-radius:6px;border-left:3px solid #7c3aed">
+      <strong>Як це працює:</strong> весь період даних ділиться на 4 рівні групи у часі. Стратегія тестується окремо на кожній групі. 
+      <strong>Валідна стратегія — позитивний PnL на ВСІХ 4 групах.</strong> Якщо хоч одна група негативна — стратегія не робастна.
+    </div>
+    <div class="combo-stats">
+      <div class="stat"><div class="stat-label">Загальний WR</div><div class="stat-value neutral" id="kf-wr">—</div></div>
+      <div class="stat"><div class="stat-label">Загальний PnL</div><div class="stat-value" id="kf-pnl">—</div></div>
+      <div class="stat"><div class="stat-label">Profit груп</div><div class="stat-value neutral" id="kf-profit-groups">—</div></div>
+      <div class="stat"><div class="stat-label">Min WR групи</div><div class="stat-value" id="kf-min-wr">—</div></div>
+      <div class="stat"><div class="stat-label">Max WR групи</div><div class="stat-value" id="kf-max-wr">—</div></div>
+      <div class="stat"><div class="stat-label">Розмах WR</div><div class="stat-value neutral" id="kf-spread">—</div></div>
+      <div class="stat"><div class="stat-label">Verdict</div><div class="stat-value" id="kf-verdict">—</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Результати по групах</h2>
+    <div style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>Група</th>
+            <th>Період</th>
+            <th>Днів</th>
+            <th>Трейдів</th>
+            <th>WR%</th>
+            <th>PnL</th>
+            <th>Avg entry</th>
+            <th>Max DD</th>
+            <th>Verdict</th>
+          </tr>
+        </thead>
+        <tbody id="kfold-groups-body"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Інтерпретація результату</h2>
+    <div id="kfold-interpretation" style="font-size:14px;line-height:1.6"></div>
   </div>
 </div>
 
@@ -535,7 +581,7 @@ function riskMetrics(trades, pos) {
   return { maxDD, worstLS, bestWS, days, daysProfitable, stdWr };
 }
 
-function setBtn(dis){['run-btn','opt-btn','stab-btn','combo-btn'].forEach(id=>document.getElementById(id).disabled=dis);}
+function setBtn(dis){['run-btn','opt-btn','stab-btn','combo-btn','kfold-btn'].forEach(id=>document.getElementById(id).disabled=dis);}
 function setL(m){document.getElementById('loading').textContent=m;}
 function showErr(m){setBtn(false);document.getElementById('loading').style.display='none';const e=document.getElementById('error-msg');e.textContent=m;e.style.display='block';}
 function showInfo(m){const e=document.getElementById('info-msg');e.textContent=m;e.style.display='block';}
@@ -545,6 +591,7 @@ function hideAllResults(){
   document.getElementById('opt-results').style.display='none';
   document.getElementById('stab-results').style.display='none';
   document.getElementById('combo-results').style.display='none';
+  document.getElementById('kfold-results').style.display='none';
   document.getElementById('error-msg').style.display='none';
   document.getElementById('info-msg').style.display='none';
 }
@@ -944,6 +991,209 @@ async function runComboBacktest() {
     document.getElementById('loading').style.display='none';
     document.getElementById('combo-results').style.display='block';
   } catch(e) {
+    showErr('Помилка: ' + e.message);
+    console.error(e);
+  }
+  setBtn(false);
+}
+// ===============================================
+
+// ========== K-FOLD VALIDATION (4 GROUPS) ==========
+async function runKFold() {
+  hideAllResults();
+  document.getElementById('loading').style.display='block';
+  setBtn(true);
+
+  const asset = document.getElementById('asset').value;
+  const tf = document.getElementById('timeframe').value;
+  const cfg = {
+    emin: +document.getElementById('emin').value,
+    emax: +document.getElementById('emax').value,
+    tmin: +document.getElementById('tmin').value,
+    tmax: +document.getElementById('tmax').value,
+    minDelta: +document.getElementById('delta').value,
+    direction: document.getElementById('direction').value,
+    limit: 999999,
+    useRegime: false,
+    regimeMap: null,
+  };
+  const pos = +document.getElementById('pos').value;
+
+  try {
+    setL('Завантажую дані...');
+    const rows = await fetchRows(asset, tf);
+    setL('Обробка трейдів...');
+
+    const allTrades = process(rows, cfg);
+
+    if (allTrades.length < 40) {
+      showErr(`Замало трейдів для k-fold (${allTrades.length}). Розширте параметри або зменшіть delta.`);
+      return;
+    }
+
+    // Sort by time
+    allTrades.sort((a,b) => a.wts - b.wts);
+
+    // Split into 4 equal groups by time
+    const earliest = allTrades[0].wts;
+    const latest = allTrades[allTrades.length-1].wts;
+    const totalSeconds = latest - earliest;
+    const groupSize = totalSeconds / 4;
+
+    const groups = [[], [], [], []];
+    for (const t of allTrades) {
+      let groupIdx = Math.floor((t.wts - earliest) / groupSize);
+      if (groupIdx >= 4) groupIdx = 3;
+      groups[groupIdx].push(t);
+    }
+
+    // Calculate stats per group
+    const groupResults = groups.map((trades, i) => {
+      if (trades.length === 0) {
+        return {
+          groupIdx: i + 1,
+          dateStart: null,
+          dateEnd: null,
+          days: 0,
+          trades: 0,
+          wins: 0,
+          losses: 0,
+          wr: 0,
+          pnl: 0,
+          avgEntry: 0,
+          maxDD: 0,
+        };
+      }
+
+      const wins = trades.filter(t => t.side === t.final).length;
+      const losses = trades.length - wins;
+      const wr = wins / trades.length;
+
+      let pnl = 0;
+      const tradesPnl = [];
+      for (const t of trades) {
+        const won = t.side === t.final;
+        const tPnl = won ? pos * (1/t.price - 1) : -pos;
+        pnl += tPnl;
+        tradesPnl.push(tPnl);
+      }
+
+      // Max drawdown
+      let eq = 0, peak = 0, maxDD = 0;
+      for (const p of tradesPnl) {
+        eq += p;
+        if (eq > peak) peak = eq;
+        const dd = peak - eq;
+        if (dd > maxDD) maxDD = dd;
+      }
+
+      const avgEntry = trades.reduce((s,t) => s + t.price, 0) / trades.length;
+      const firstDay = new Date(trades[0].wts * 1000).toISOString().slice(0,10);
+      const lastDay = new Date(trades[trades.length-1].wts * 1000).toISOString().slice(0,10);
+      const daySet = new Set(trades.map(t => new Date(t.wts*1000).toISOString().slice(0,10)));
+
+      return {
+        groupIdx: i + 1,
+        dateStart: firstDay,
+        dateEnd: lastDay,
+        days: daySet.size,
+        trades: trades.length,
+        wins,
+        losses,
+        wr,
+        pnl,
+        avgEntry,
+        maxDD,
+      };
+    });
+
+    // Overall stats
+    const totalTrades = allTrades.length;
+    const totalWins = allTrades.filter(t => t.side === t.final).length;
+    const overallWR = totalWins / totalTrades;
+    const overallPnL = groupResults.reduce((s,g) => s + g.pnl, 0);
+    const profitGroups = groupResults.filter(g => g.pnl > 0).length;
+    const validGroups = groupResults.filter(g => g.trades > 0);
+    const minWR = Math.min(...validGroups.map(g => g.wr));
+    const maxWR = Math.max(...validGroups.map(g => g.wr));
+    const wrSpread = maxWR - minWR;
+
+    // Verdict
+    let verdict = '';
+    let verdictColor = '';
+    let interpretation = '';
+
+    if (profitGroups === 4) {
+      verdict = '✅ Robust';
+      verdictColor = '#22c55e';
+      interpretation = `<strong style="color:#22c55e">✅ Стратегія робастна.</strong> Усі 4 групи показали позитивний PnL. Розмах WR <strong>${(wrSpread*100).toFixed(1)} п.п.</strong> ${wrSpread < 0.10 ? '(дуже стабільна)' : wrSpread < 0.15 ? '(нормальна варіація)' : '(значна варіація — слідкуй)'}. Це справжня alpha — не випадковий збіг даних.`;
+    } else if (profitGroups === 3) {
+      verdict = '🟡 Crawled';
+      verdictColor = '#eab308';
+      const failedGroup = groupResults.findIndex(g => g.pnl <= 0) + 1;
+      interpretation = `<strong style="color:#eab308">🟡 Стратегія має слабке місце.</strong> 3 з 4 груп прибуткові, але <strong>група ${failedGroup}</strong> (${groupResults[failedGroup-1].dateStart} — ${groupResults[failedGroup-1].dateEnd}) збиткова. Подумай чи це випадковий поганий період чи структурний зсув ринку. Якщо тільки одна група і вона історична (старі дні) — стратегія ймовірно валідна. Якщо це остання група — увага, тренд міг змінитись.`;
+    } else if (profitGroups === 2) {
+      verdict = '⚠️ Risky';
+      verdictColor = '#f97316';
+      interpretation = `<strong style="color:#f97316">⚠️ Стратегія НЕ робастна.</strong> Тільки 2 з 4 груп прибуткові — це 50/50, дуже близько до випадковості. Стратегія працює "коли пощастить з ринком", а не системно. Скоріш за все це overfit. Не варто торгувати з реальними грошима.`;
+    } else {
+      verdict = '🔴 Failed';
+      verdictColor = '#ef4444';
+      interpretation = `<strong style="color:#ef4444">🔴 Стратегія НЕВАЛІДНА.</strong> Менше половини груп прибуткові. Це означає що загальний позитивний PnL (якщо є) — артефакт одного-двох щасливих періодів. У реальній торгівлі це гарантовано призведе до втрат. Шукай іншу стратегію.`;
+    }
+
+    // Render header stats
+    document.getElementById('kfold-info').textContent =
+      `${asset.toUpperCase()} ${tf} | delta≥${cfg.minDelta}% | ${cfg.emin}-${cfg.emax} | ${cfg.tmin}-${cfg.tmax}s | ставка $${pos} | ${totalTrades} трейдів`;
+
+    document.getElementById('kf-wr').textContent = (overallWR*100).toFixed(1) + '%';
+    setCol('kf-pnl', (overallPnL>=0?'+':'')+'$'+overallPnL.toFixed(2), overallPnL>=0);
+    document.getElementById('kf-profit-groups').textContent = `${profitGroups}/4`;
+    document.getElementById('kf-profit-groups').style.color = profitGroups === 4 ? '#22c55e' : profitGroups >= 2 ? '#eab308' : '#ef4444';
+    document.getElementById('kf-min-wr').textContent = (minWR*100).toFixed(1) + '%';
+    document.getElementById('kf-min-wr').style.color = minWR >= 0.75 ? '#22c55e' : minWR >= 0.60 ? '#eab308' : '#ef4444';
+    document.getElementById('kf-max-wr').textContent = (maxWR*100).toFixed(1) + '%';
+    document.getElementById('kf-max-wr').style.color = '#22c55e';
+    document.getElementById('kf-spread').textContent = (wrSpread*100).toFixed(1) + ' п.п.';
+    document.getElementById('kf-spread').style.color = wrSpread < 0.10 ? '#22c55e' : wrSpread < 0.20 ? '#eab308' : '#ef4444';
+    document.getElementById('kf-verdict').textContent = verdict;
+    document.getElementById('kf-verdict').style.color = verdictColor;
+
+    // Render groups table
+    const tbody = document.getElementById('kfold-groups-body');
+    tbody.innerHTML = '';
+    groupResults.forEach(g => {
+      const tr = document.createElement('tr');
+      if (g.trades === 0) {
+        tr.innerHTML = `
+          <td><strong>${g.groupIdx}</strong></td>
+          <td colspan="8" style="color:#888;text-align:center">Порожня група (немає трейдів у цьому періоді)</td>
+        `;
+      } else {
+        const wrColor = g.wr >= 0.80 ? '#22c55e' : g.wr >= 0.65 ? '#eab308' : '#ef4444';
+        const pnlColor = g.pnl >= 0 ? '#22c55e' : '#ef4444';
+        const groupVerdict = g.pnl > 0 
+          ? '<span style="color:#22c55e">✅ Profit</span>' 
+          : '<span style="color:#ef4444">❌ Loss</span>';
+        tr.innerHTML = `
+          <td><strong>${g.groupIdx}</strong></td>
+          <td style="font-size:11px;color:#666">${g.dateStart}<br>${g.dateEnd}</td>
+          <td>${g.days}</td>
+          <td>${g.trades} <span style="color:#888;font-size:11px">(${g.wins}W/${g.losses}L)</span></td>
+          <td style="font-weight:500;color:${wrColor}">${(g.wr*100).toFixed(1)}%</td>
+          <td style="font-weight:500;color:${pnlColor}">${g.pnl>=0?'+':''}$${g.pnl.toFixed(2)}</td>
+          <td>${g.avgEntry.toFixed(3)}</td>
+          <td style="color:#ef4444">-$${g.maxDD.toFixed(2)}</td>
+          <td>${groupVerdict}</td>
+        `;
+      }
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById('kfold-interpretation').innerHTML = interpretation;
+    document.getElementById('loading').style.display='none';
+    document.getElementById('kfold-results').style.display='block';
+  } catch (e) {
     showErr('Помилка: ' + e.message);
     console.error(e);
   }
