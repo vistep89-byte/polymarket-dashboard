@@ -1276,10 +1276,12 @@ const DIR_LABEL = {
 
 // Жорсткі фільтри для strict mode
 const KFOPT_STRICT_FILTERS = {
-  minTradesPerGroup: 30,   // мінімум трейдів на групу для статистичної значущості
-  minWorstGroupPnL: 5,     // мінімум $5 на найгіршій групі (при ставці $10)
-  maxAvgEntry: 0.92,       // не дозволяти стратегії що тільки на cheap entries
-  minProfitGroups: 4,      // 4/4 must be profit
+  minTradesPerGroup: 80,     // мінімум 80 трейдів на групу (статистична впевненість)
+  minWorstGroupPnL: 20,      // мінімум $20 на найгіршій групі (real edge, не шум)
+  maxAvgEntry: 0.88,         // не дозволяти стратегії що тільки на super-cheap
+  minProfitGroups: 4,        // 4/4 must be profit
+  minWRperGroup: 0.78,       // кожна група мінімум 78% WR
+  maxSpreadWR: 0.10,         // макс різниця між найкращою і найгіршою WR групою = 10 п.п.
 };
 
 // Розрахунок robustness score (0-100)
@@ -1387,6 +1389,8 @@ function passesStrictFilters(result) {
   if (result.groups.some(g => g.trades < F.minTradesPerGroup)) return false;
   if (result.minPnL < F.minWorstGroupPnL) return false;
   if (result.overallAvgEntry > F.maxAvgEntry) return false;
+  if (result.minWR < F.minWRperGroup) return false;
+  if (result.spread > F.maxSpreadWR) return false;
   return true;
 }
 
@@ -1462,8 +1466,12 @@ async function runKFoldOptimizer(strict) {
       }
     }
 
-    // Sort by score desc
-    allResults.sort((a,b) => b.score - a.score);
+    // Sort: Quick by score, Strict by min group PnL (worst case optimization)
+    if (strict) {
+      allResults.sort((a,b) => b.minPnL - a.minPnL);
+    } else {
+      allResults.sort((a,b) => b.score - a.score);
+    }
     const top = allResults.slice(0, 15);
 
     LAST_KFOPT_RESULTS = top;
@@ -1479,15 +1487,21 @@ async function runKFoldOptimizer(strict) {
       `${asset.toUpperCase()} ${tf} | ставка $${pos} | перебрано ${combos.length} комбінацій | час: ${elapsed}s`;
 
     document.getElementById('kfopt-explanation').innerHTML = strict
-      ? `<strong>Жорсткий пошук.</strong> Показано тільки стратегії що пройшли ВСІ фільтри: 
+      ? `<strong>Жорсткий пошук — оптимізація "worst case".</strong> 
+         Стратегії проходять ВСІ фільтри: 
          (1) 4/4 групи в плюсі, 
-         (2) мінімум ${KFOPT_STRICT_FILTERS.minTradesPerGroup} трейдів на групу, 
-         (3) PnL ≥ $${KFOPT_STRICT_FILTERS.minWorstGroupPnL} на найгіршій групі, 
-         (4) avg entry ≤ ${KFOPT_STRICT_FILTERS.maxAvgEntry}. 
-         Якщо нічого не пройшло — стратегія потребує переробки.`
+         (2) мінімум <strong>${KFOPT_STRICT_FILTERS.minTradesPerGroup}</strong> трейдів/групу, 
+         (3) PnL ≥ <strong>$${KFOPT_STRICT_FILTERS.minWorstGroupPnL}</strong> на найгіршій групі, 
+         (4) avg entry ≤ <strong>${KFOPT_STRICT_FILTERS.maxAvgEntry}</strong>, 
+         (5) WR ≥ <strong>${(KFOPT_STRICT_FILTERS.minWRperGroup*100).toFixed(0)}%</strong> на КОЖНІЙ групі, 
+         (6) спред WR ≤ <strong>${(KFOPT_STRICT_FILTERS.maxSpreadWR*100).toFixed(0)} п.п.</strong>
+         <br><br>
+         <strong>Сортування — за PnL найгіршої групи</strong> (а не загальним PnL). 
+         Це показує стратегії з найбільш стабільним worst-case результатом, які краще підходять для реальної торгівлі.`
       : `<strong>Швидкий пошук.</strong> Показано топ-15 стратегій за robustness score 
          (sortування: profit groups + min WR + min PnL + WR stability). 
-         Натисни 🔬 поруч зі стратегією щоб перевірити її через жорсткі фільтри + sensitivity analysis.`;
+         Натисни 🔬 поруч зі стратегією щоб перевірити її через жорсткі фільтри + sensitivity analysis.
+         Для глибокої перевірки використай Strict K-fold Search.`;
 
     document.getElementById('kfopt-tested').textContent = combos.length;
     document.getElementById('kfopt-passed').textContent = passed;
@@ -1613,6 +1627,18 @@ async function detailKFoptStrategy(idx) {
       pass: r.overallAvgEntry <= F.maxAvgEntry,
       actual: r.overallAvgEntry.toFixed(3),
       required: `≤${F.maxAvgEntry}`,
+    },
+    {
+      name: `Min WR на групі`,
+      pass: r.minWR >= F.minWRperGroup,
+      actual: `${(r.minWR*100).toFixed(1)}%`,
+      required: `≥${(F.minWRperGroup*100).toFixed(0)}%`,
+    },
+    {
+      name: `Спред WR (стабільність)`,
+      pass: r.spread <= F.maxSpreadWR,
+      actual: `${(r.spread*100).toFixed(1)} п.п.`,
+      required: `≤${(F.maxSpreadWR*100).toFixed(0)} п.п.`,
     },
   ];
 
