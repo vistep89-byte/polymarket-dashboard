@@ -286,6 +286,10 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
     <h2 id="kfopt-detail-title">🔬 Детальний аналіз стратегії</h2>
     <div id="kfopt-detail-content"></div>
   </div>
+  <div class="card" id="stoploss-test-card" style="display:none">
+    <h2>🛑 Stop-loss Test — порівняння 6 режимів</h2>
+    <div id="stoploss-test-content"></div>
+  </div>
 </div>
 
 <div id="kfold-results" style="display:none">
@@ -1381,7 +1385,7 @@ function runOneKFoldBacktest(rows, cfg, pos) {
   };
 }
 
-// Чи проходить strict filters
+// Чи проходить strict filters (статичні, для compatibility)
 function passesStrictFilters(result) {
   if (!result) return false;
   const F = KFOPT_STRICT_FILTERS;
@@ -1394,8 +1398,69 @@ function passesStrictFilters(result) {
   return true;
 }
 
+// Helper: median value
+function medianOf(arr) {
+  if (!arr.length) return 0;
+  const sorted = [...arr].sort((a,b) => a-b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid-1] + sorted[mid]) / 2;
+}
+
+// Обчислюємо adaptive filters з даних
+function calcAdaptiveFilters(allResults) {
+  if (!allResults.length) return null;
+
+  // Use only robust 4/4 results for baseline calculation (бо вони — основа edge)
+  const robustResults = allResults.filter(r => r.profitGroups === 4);
+  const baseSet = robustResults.length >= 10 ? robustResults : allResults;
+
+  // Top 50% of trades count (бо хочемо filters що допускають середній за volume market)
+  const tradesArr = baseSet.map(r => r.totalTrades).sort((a,b) => b-a);
+  const topHalfTrades = tradesArr.slice(0, Math.max(5, Math.ceil(tradesArr.length / 2)));
+  const medianTopTrades = medianOf(topHalfTrades);
+  const expectedPerGroup = medianTopTrades / 4;
+
+  // Median PnL of robust strategies
+  const medianTotalPnL = medianOf(baseSet.map(r => r.totalPnL));
+
+  // Adaptive thresholds
+  const minTradesPerGroup = Math.max(15, Math.round(expectedPerGroup * 0.30));
+  const minWorstGroupPnL = Math.max(0, medianTotalPnL > 0 ? medianTotalPnL * 0.05 : 0);
+
+  // Spread scales with sample size — менший sample = більший допустимий variance
+  let maxSpreadWR;
+  if (expectedPerGroup >= 200) maxSpreadWR = 0.10;
+  else if (expectedPerGroup >= 80) maxSpreadWR = 0.13;
+  else if (expectedPerGroup >= 30) maxSpreadWR = 0.18;
+  else maxSpreadWR = 0.25;
+
+  return {
+    minProfitGroups: 4,
+    minTradesPerGroup,
+    minWorstGroupPnL: +minWorstGroupPnL.toFixed(2),
+    maxAvgEntry: 0.92,        // universal — захист від only-cheap стратегій
+    minWRperGroup: 0.75,      // universal — нижня planka edge
+    maxSpreadWR: +maxSpreadWR.toFixed(2),
+    _expectedPerGroup: Math.round(expectedPerGroup),
+    _medianTotalPnL: +medianTotalPnL.toFixed(2),
+    _baseSize: baseSet.length,
+  };
+}
+
+function passesAdaptiveFilters(result, F) {
+  if (!result || !F) return false;
+  if (result.profitGroups < F.minProfitGroups) return false;
+  if (result.groups.some(g => g.trades < F.minTradesPerGroup)) return false;
+  if (result.minPnL < F.minWorstGroupPnL) return false;
+  if (result.overallAvgEntry > F.maxAvgEntry) return false;
+  if (result.minWR < F.minWRperGroup) return false;
+  if (result.spread > F.maxSpreadWR) return false;
+  return true;
+}
+
 // Зберігаємо results для дій з UI
 let LAST_KFOPT_RESULTS = [];
+let LAST_KFOPT_ADAPTIVE_FILTERS = null;
 
 async function runKFoldOptimizer(strict) {
   hideAllResults();
@@ -1433,37 +1498,49 @@ async function runKFoldOptimizer(strict) {
 
     setL(`Обробка ${combos.length} комбінацій (0%)...`);
 
-    const allResults = [];
+    // Phase 1: Run all backtests (без strict фільтрації — collect everything)
+    const validResults = [];
     let tested = 0;
-    let passed = 0;
     let robust = 0;
 
     for (let i = 0; i < combos.length; i++) {
       const res = runOneKFoldBacktest(rows, combos[i], pos);
       tested++;
       if (res) {
-        const isRobust = res.profitGroups === 4;
-        const passesStrict = passesStrictFilters(res);
-        if (isRobust) robust++;
-
-        if (strict) {
-          if (passesStrict) {
-            allResults.push(res);
-            passed++;
-          }
-        } else {
-          // Quick: keep all that completed backtest
-          allResults.push(res);
-          passed++;
-        }
+        validResults.push(res);
+        if (res.profitGroups === 4) robust++;
       }
 
       // UI update every 50 iterations
       if (i % 50 === 0 || i === combos.length - 1) {
         const pct = Math.round(100 * (i+1) / combos.length);
-        setL(`Обробка ${combos.length} комбінацій (${pct}%) | пройшли: ${passed} | robust: ${robust}`);
-        await new Promise(r => setTimeout(r, 0)); // yield to browser
+        setL(`Обробка ${combos.length} комбінацій (${pct}%) | valid: ${validResults.length} | robust: ${robust}`);
+        await new Promise(r => setTimeout(r, 0));
       }
+    }
+
+    // Phase 2: Apply filtering
+    let allResults;
+    let adaptiveFilters = null;
+    let passed = 0;
+
+    if (strict) {
+      setL('Обчислюю adaptive filters для цього маркету...');
+      await new Promise(r => setTimeout(r, 50));
+      adaptiveFilters = calcAdaptiveFilters(validResults);
+
+      if (adaptiveFilters) {
+        allResults = validResults.filter(r => passesAdaptiveFilters(r, adaptiveFilters));
+        passed = allResults.length;
+      } else {
+        allResults = [];
+        passed = 0;
+      }
+      LAST_KFOPT_ADAPTIVE_FILTERS = adaptiveFilters;
+    } else {
+      allResults = validResults;
+      passed = validResults.length;
+      LAST_KFOPT_ADAPTIVE_FILTERS = null;
     }
 
     // Sort: Quick by score, Strict by min group PnL (worst case optimization)
@@ -1487,21 +1564,25 @@ async function runKFoldOptimizer(strict) {
       `${asset.toUpperCase()} ${tf} | ставка $${pos} | перебрано ${combos.length} комбінацій | час: ${elapsed}s`;
 
     document.getElementById('kfopt-explanation').innerHTML = strict
-      ? `<strong>Жорсткий пошук — оптимізація "worst case".</strong> 
-         Стратегії проходять ВСІ фільтри: 
-         (1) 4/4 групи в плюсі, 
-         (2) мінімум <strong>${KFOPT_STRICT_FILTERS.minTradesPerGroup}</strong> трейдів/групу, 
-         (3) PnL ≥ <strong>$${KFOPT_STRICT_FILTERS.minWorstGroupPnL}</strong> на найгіршій групі, 
-         (4) avg entry ≤ <strong>${KFOPT_STRICT_FILTERS.maxAvgEntry}</strong>, 
-         (5) WR ≥ <strong>${(KFOPT_STRICT_FILTERS.minWRperGroup*100).toFixed(0)}%</strong> на КОЖНІЙ групі, 
-         (6) спред WR ≤ <strong>${(KFOPT_STRICT_FILTERS.maxSpreadWR*100).toFixed(0)} п.п.</strong>
-         <br><br>
-         <strong>Сортування — за PnL найгіршої групи</strong> (а не загальним PnL). 
-         Це показує стратегії з найбільш стабільним worst-case результатом, які краще підходять для реальної торгівлі.`
+      ? (adaptiveFilters
+        ? `<strong>Жорсткий пошук з adaptive filters.</strong> Пороги обчислюються з ваших даних, не зашиті:
+           <ul style="margin:8px 0;padding-left:24px">
+             <li>4/4 групи прибуткові ✓</li>
+             <li>Мін. <strong>${adaptiveFilters.minTradesPerGroup}</strong> трейдів/групу 
+               <span style="color:#888">(20% від медіани топ-стратегій)</span></li>
+             <li>PnL найгіршої групи ≥ <strong>$${adaptiveFilters.minWorstGroupPnL.toFixed(2)}</strong> 
+               <span style="color:#888">(5% від медіанного загального PnL)</span></li>
+             <li>Avg entry ≤ <strong>${adaptiveFilters.maxAvgEntry}</strong> (universal)</li>
+             <li>WR ≥ <strong>${(adaptiveFilters.minWRperGroup*100).toFixed(0)}%</strong> на кожній групі (universal)</li>
+             <li>Спред WR ≤ <strong>${(adaptiveFilters.maxSpreadWR*100).toFixed(0)} п.п.</strong> 
+               <span style="color:#888">(scaled to sample size: експект ~${adaptiveFilters._expectedPerGroup} трейдів/групу)</span></li>
+           </ul>
+           <strong>Сортування — за PnL найгіршої групи</strong> (worst-case оптимізація).`
+        : `<strong>Помилка:</strong> не вдалось обчислити adaptive filters. Спробуйте Quick search спочатку.`)
       : `<strong>Швидкий пошук.</strong> Показано топ-15 стратегій за robustness score 
          (sortування: profit groups + min WR + min PnL + WR stability). 
-         Натисни 🔬 поруч зі стратегією щоб перевірити її через жорсткі фільтри + sensitivity analysis.
-         Для глибокої перевірки використай Strict K-fold Search.`;
+         Натисни 🔬 поруч зі стратегією щоб перевірити її через детальний аналіз з sensitivity analysis.
+         Для глибокої перевірки використай Strict K-fold Search з adaptive filters.`;
 
     document.getElementById('kfopt-tested').textContent = combos.length;
     document.getElementById('kfopt-passed').textContent = passed;
@@ -1548,6 +1629,7 @@ async function runKFoldOptimizer(strict) {
           <td style="white-space:nowrap">
             <button onclick="useKFoptStrategy(${idx})" style="padding:4px 8px;font-size:11px;background:#22c55e;color:white;border:none;border-radius:4px;cursor:pointer">Use</button>
             <button onclick="detailKFoptStrategy(${idx})" style="padding:4px 8px;font-size:11px;background:#7c3aed;color:white;border:none;border-radius:4px;cursor:pointer">🔬</button>
+            <button onclick="stopLossTest(${idx})" style="padding:4px 8px;font-size:11px;background:#ef4444;color:white;border:none;border-radius:4px;cursor:pointer">🛑</button>
           </td>
         `;
         tbody.appendChild(tr);
@@ -1601,8 +1683,9 @@ async function detailKFoptStrategy(idx) {
   const pos = +document.getElementById('pos').value;
   const rows = await fetchRows(asset, tf);
 
-  // Strict filters checklist
-  const F = KFOPT_STRICT_FILTERS;
+  // Use adaptive filters if available (after Strict search), else fall back to static
+  const F = LAST_KFOPT_ADAPTIVE_FILTERS || KFOPT_STRICT_FILTERS;
+  const isAdaptive = LAST_KFOPT_ADAPTIVE_FILTERS !== null;
   const checks = [
     {
       name: `4/4 групи прибуткові`,
@@ -1677,7 +1760,7 @@ async function detailKFoptStrategy(idx) {
       <strong>Score: ${r.score}/100</strong>
     </div>
 
-    <h3 style="margin-top:16px;margin-bottom:8px">📋 Strict Filters Checklist</h3>
+    <h3 style="margin-top:16px;margin-bottom:8px">📋 Strict Filters Checklist ${isAdaptive ? '<span style="font-size:11px;background:#7c3aed;color:white;padding:2px 6px;border-radius:4px;font-weight:500;vertical-align:middle">ADAPTIVE</span>' : ''}</h3>
     <table style="margin-bottom:20px">
       <thead><tr><th>Перевірка</th><th>Required</th><th>Actual</th><th>Status</th></tr></thead>
       <tbody>
@@ -1769,6 +1852,305 @@ async function detailKFoptStrategy(idx) {
       }
     </div>
   `;
+  content.innerHTML = html;
+}
+// ===============================================
+
+// ========== STOP-LOSS TEST PAGE ==========
+
+// Симуляція торгівлі зі стратегією + stop-loss режимом
+function simulateStopLoss(trades, mode, pos) {
+  // Sort by time ascending
+  const sortedTrades = [...trades].sort((a,b) => a.wts - b.wts);
+
+  let cumPnL = 0;
+  let peakPnL = 0;
+  let maxDD = 0;
+  let dayPnL = 0;
+  let currentDay = null;
+  let consecutiveLosses = 0;
+  let pausedUntil = null;
+  let halfSizeMode = false;
+
+  let executed = 0, skipped = 0;
+  let wins = 0, losses = 0;
+  const dailyPnL = new Map();
+
+  for (const trade of sortedTrades) {
+    const dayStr = new Date(trade.wts * 1000).toISOString().slice(0,10);
+
+    if (dayStr !== currentDay) {
+      currentDay = dayStr;
+      dayPnL = 0;
+      // Note: pause carries over until expired (in case it spans midnight)
+    }
+
+    // Check if paused
+    if (pausedUntil !== null) {
+      if (trade.wts < pausedUntil) {
+        skipped++;
+        continue;
+      } else {
+        pausedUntil = null;
+      }
+    }
+
+    // Determine bet size (full or half)
+    const size = (halfSizeMode && mode === 'D') ? pos / 2 : pos;
+
+    // Execute trade
+    executed++;
+    const won = trade.side === trade.final;
+    const tradePnL = won ? size * (1/trade.price - 1) : -size;
+
+    cumPnL += tradePnL;
+    dayPnL += tradePnL;
+    dailyPnL.set(dayStr, (dailyPnL.get(dayStr) || 0) + tradePnL);
+
+    if (won) {
+      wins++;
+      consecutiveLosses = 0;
+      if (mode === 'D' && halfSizeMode) halfSizeMode = false;
+    } else {
+      losses++;
+      consecutiveLosses++;
+    }
+
+    // Update drawdown tracking
+    if (cumPnL > peakPnL) peakPnL = cumPnL;
+    const currentDD = peakPnL - cumPnL;
+    if (currentDD > maxDD) maxDD = currentDD;
+
+    // Apply stop-loss logic based on mode
+    switch (mode) {
+      case 'A':
+        // No stop-loss — pure baseline
+        break;
+      case 'B':
+        // Daily stop at -$10 (наш поточний)
+        if (dayPnL <= -10) {
+          const endOfDay = Math.floor(trade.wts / 86400) * 86400 + 86400;
+          pausedUntil = endOfDay;
+        }
+        break;
+      case 'C':
+        // Daily stop at -$25 (толерантніший)
+        if (dayPnL <= -25) {
+          const endOfDay = Math.floor(trade.wts / 86400) * 86400 + 86400;
+          pausedUntil = endOfDay;
+        }
+        break;
+      case 'D':
+        // Half-size after 3 consecutive losses
+        if (consecutiveLosses >= 3) {
+          halfSizeMode = true;
+        }
+        break;
+      case 'E':
+        // 30-min cooldown after 2 consecutive losses
+        if (consecutiveLosses >= 2) {
+          pausedUntil = trade.wts + 1800;
+          consecutiveLosses = 0;
+        }
+        break;
+      case 'F':
+        // Trailing -15% от peak
+        if (peakPnL > 5 && (peakPnL - cumPnL) / peakPnL > 0.15) {
+          pausedUntil = trade.wts + 21600; // 6h pause
+        }
+        break;
+    }
+  }
+
+  const dailyValues = Array.from(dailyPnL.values());
+  const worstDay = dailyValues.length ? Math.min(...dailyValues) : 0;
+  const bestDay = dailyValues.length ? Math.max(...dailyValues) : 0;
+  const profitableDays = dailyValues.filter(v => v > 0).length;
+  const totalDays = dailyValues.length;
+
+  return {
+    totalPnL: cumPnL,
+    maxDD,
+    worstDay: Math.abs(Math.min(0, worstDay)),
+    bestDay: Math.max(0, bestDay),
+    executed,
+    skipped,
+    wins,
+    losses,
+    wr: executed > 0 ? wins / executed : 0,
+    profitableDays,
+    totalDays,
+  };
+}
+
+async function stopLossTest(idx) {
+  const r = LAST_KFOPT_RESULTS[idx];
+  if (!r) return;
+
+  const card = document.getElementById('stoploss-test-card');
+  card.style.display = 'block';
+  card.scrollIntoView({behavior:'smooth', block:'start'});
+
+  const content = document.getElementById('stoploss-test-content');
+  content.innerHTML = '<div style="padding:20px;color:#888">Прогоняю 6 stop-loss варіантів на ваших даних...</div>';
+
+  const asset = document.getElementById('asset').value;
+  const tf = document.getElementById('timeframe').value;
+  const pos = +document.getElementById('pos').value;
+
+  await new Promise(r => setTimeout(r, 50));
+
+  const rows = await fetchRows(asset, tf);
+  const trades = process(rows, r.cfg);
+
+  if (trades.length < 50) {
+    content.innerHTML = '<div style="padding:20px;color:#ef4444">Замало трейдів для змістовного stop-loss тесту (' + trades.length + '). Потрібно мінімум 50.</div>';
+    return;
+  }
+
+  const modes = [
+    { id: 'A', label: 'A. Pure', color: '#3b82f6',
+      desc: 'Без жодного stop-loss — baseline, чистий edge стратегії' },
+    { id: 'B', label: 'B. Daily -$10', color: '#eab308',
+      desc: 'Наш поточний — пауза до кінця дня при просадці -$10' },
+    { id: 'C', label: 'C. Daily -$25', color: '#f97316',
+      desc: 'Толерантніший — пауза до кінця дня при просадці -$25' },
+    { id: 'D', label: 'D. Half-size after 3 LOSS', color: '#06b6d4',
+      desc: 'М\'який — після 3 LOSS поспіль ставка зменшується вдвічі (повертається після WIN)' },
+    { id: 'E', label: 'E. Cooldown 30min after 2 LOSS', color: '#22c55e',
+      desc: 'Anti-hot-window — пауза 30хв після 2 LOSS поспіль (захист від adverse selection)' },
+    { id: 'F', label: 'F. Trailing -15%', color: '#a855f7',
+      desc: 'Adaptive — пауза 6 годин якщо просадка від піка > 15%' },
+  ];
+
+  const results = modes.map(m => ({
+    ...m,
+    ...simulateStopLoss(trades, m.id, pos)
+  }));
+
+  // Find best by different criteria
+  const bestPnL = results.reduce((a,b) => b.totalPnL > a.totalPnL ? b : a);
+  const bestRAR = results.reduce((a,b) => {
+    const aR = a.totalPnL / Math.max(1, a.maxDD);
+    const bR = b.totalPnL / Math.max(1, b.maxDD);
+    return bR > aR ? b : a;
+  });
+  const lowestDD = results.reduce((a,b) => b.maxDD < a.maxDD ? b : a);
+
+  // Render
+  let html = `
+    <div style="font-size:14px;margin-bottom:12px;padding:10px;background:#f9fafb;border-radius:6px">
+      <strong>Стратегія:</strong> delta≥${r.cfg.minDelta}% | ${r.cfg.emin}-${r.cfg.emax} | ${r.cfg.tmin}-${r.cfg.tmax}s | ${DIR_LABEL[r.cfg.direction]} |
+      <strong>${trades.length}</strong> total trades | ставка <strong>$${pos}</strong>
+    </div>
+
+    <div style="font-size:13px;margin-bottom:12px;padding:10px;background:#faf5ff;border-radius:6px;border-left:3px solid #7c3aed">
+      <strong>Що показує:</strong> та сама стратегія, але з різними правилами захисту. 
+      Шукаємо що краще — <strong>Best PnL</strong> (максимальний прибуток), 
+      <strong>Best RAR</strong> (Risk-Adjusted Return = PnL/Max Drawdown — стабільність),
+      або <strong>Lowest DD</strong> (найменша просадка).
+    </div>
+
+    <h3 style="margin-top:16px;margin-bottom:8px">📊 Порівняльна таблиця</h3>
+    <div style="overflow-x:auto"><table>
+      <thead><tr>
+        <th>Режим</th>
+        <th>Executed</th>
+        <th>Skipped</th>
+        <th>WR%</th>
+        <th>Total PnL</th>
+        <th>Max DD</th>
+        <th>PnL / DD</th>
+        <th>Worst day</th>
+        <th>Best day</th>
+        <th>Profit days</th>
+      </tr></thead>
+      <tbody>`;
+
+  for (const res of results) {
+    const isBestPnL = res.id === bestPnL.id;
+    const isBestRAR = res.id === bestRAR.id;
+    const isLowestDD = res.id === lowestDD.id;
+    const rowBg = isBestPnL && isBestRAR ? 'background:#f0fdf4' : isBestPnL ? 'background:#fefce8' : '';
+    const pnlCol = res.totalPnL >= 0 ? '#22c55e' : '#ef4444';
+    const ddCol = res.maxDD <= 30 ? '#22c55e' : res.maxDD <= 80 ? '#eab308' : '#ef4444';
+    const rar = res.totalPnL / Math.max(1, res.maxDD);
+    const rarStr = rar.toFixed(2);
+    const rarCol = rar > 2 ? '#22c55e' : rar > 1 ? '#eab308' : '#ef4444';
+    const skippedTxt = res.skipped > 0 ? `<span style="color:#888">${res.skipped}</span>` : '0';
+
+    const badges = [];
+    if (isBestPnL) badges.push('<span style="font-size:9px;background:#22c55e;color:white;padding:1px 4px;border-radius:3px;margin-left:4px">🏆 PnL</span>');
+    if (isBestRAR) badges.push('<span style="font-size:9px;background:#7c3aed;color:white;padding:1px 4px;border-radius:3px;margin-left:4px">⭐ RAR</span>');
+    if (isLowestDD) badges.push('<span style="font-size:9px;background:#3b82f6;color:white;padding:1px 4px;border-radius:3px;margin-left:4px">🛡 DD</span>');
+
+    html += `<tr style="${rowBg}">
+      <td><strong style="color:${res.color}">${res.label}</strong>${badges.join('')}</td>
+      <td>${res.executed} <span style="color:#888;font-size:11px">(${res.wins}W/${res.losses}L)</span></td>
+      <td>${skippedTxt}</td>
+      <td>${(res.wr*100).toFixed(1)}%</td>
+      <td style="color:${pnlCol};font-weight:500">${res.totalPnL>=0?'+':''}$${res.totalPnL.toFixed(2)}</td>
+      <td style="color:${ddCol}">-$${res.maxDD.toFixed(2)}</td>
+      <td style="color:${rarCol};font-weight:500">${rarStr}</td>
+      <td style="color:#ef4444">-$${res.worstDay.toFixed(2)}</td>
+      <td style="color:#22c55e">+$${res.bestDay.toFixed(2)}</td>
+      <td>${res.profitableDays}/${res.totalDays}</td>
+    </tr>`;
+  }
+
+  html += '</tbody></table></div>';
+
+  // Mode descriptions
+  html += '<h3 style="margin-top:20px;margin-bottom:8px">Деталі режимів</h3>';
+  html += '<div style="font-size:13px;line-height:1.8">';
+  for (const m of modes) {
+    html += `<div style="margin-bottom:6px"><strong style="color:${m.color}">${m.label}:</strong> <span style="color:#666">${m.desc}</span></div>`;
+  }
+  html += '</div>';
+
+  // Interpretation
+  const bestPnLval = bestPnL.totalPnL;
+  const bestRARval = bestRAR.totalPnL / Math.max(1, bestRAR.maxDD);
+  const pureRAR = results[0].totalPnL / Math.max(1, results[0].maxDD);
+  const ourCurrent = results[1]; // Mode B
+  const ourCurrentVsBest = bestPnLval - ourCurrent.totalPnL;
+  const ourCurrentVsBestPct = ourCurrent.totalPnL !== 0 ? Math.round(100 * ourCurrentVsBest / Math.abs(ourCurrent.totalPnL)) : 0;
+
+  html += `<div style="margin-top:20px;padding:14px;background:#f9fafb;border-radius:8px;border-left:4px solid #7c3aed">
+    <strong style="font-size:15px">📌 Інтерпретація:</strong>
+    <div style="margin-top:10px;font-size:13px;line-height:1.7">
+      <strong>🏆 Best PnL:</strong> <strong style="color:${bestPnL.color}">${bestPnL.label}</strong> 
+      — <strong>+$${bestPnL.totalPnL.toFixed(2)}</strong> 
+      (PnL/DD = ${(bestPnLval/Math.max(1, bestPnL.maxDD)).toFixed(2)})<br>
+      
+      <strong>⭐ Best Risk-Adjusted:</strong> <strong style="color:${bestRAR.color}">${bestRAR.label}</strong> 
+      — PnL/DD = <strong>${bestRARval.toFixed(2)}</strong> 
+      ($${bestRAR.totalPnL.toFixed(2)} прибуток / $${bestRAR.maxDD.toFixed(2)} max DD)<br>
+      
+      <strong>🛡 Lowest Drawdown:</strong> <strong style="color:${lowestDD.color}">${lowestDD.label}</strong> 
+      — макс просадка лише <strong>-$${lowestDD.maxDD.toFixed(2)}</strong><br><br>
+
+      <strong>Порівняння з нашим поточним (Mode B, daily -$10):</strong><br>
+      <span style="color:#666">Поточний PnL: ${ourCurrent.totalPnL>=0?'+':''}$${ourCurrent.totalPnL.toFixed(2)}, 
+      Max DD: -$${ourCurrent.maxDD.toFixed(2)}</span><br>
+      ${ourCurrent.id === bestPnL.id 
+        ? '<span style="color:#22c55e">✅ Наш поточний режим — Best PnL! Залишаємо як є.</span>'
+        : `<span style="color:${ourCurrentVsBest > 0 ? '#eab308' : '#22c55e'}">
+            ${ourCurrentVsBest > 0 
+              ? `🟡 Перехід на <strong>${bestPnL.label}</strong> дав би <strong>+$${ourCurrentVsBest.toFixed(2)}</strong> більше (${ourCurrentVsBestPct > 0 ? '+' : ''}${ourCurrentVsBestPct}% покращення).`
+              : `✅ Наш поточний кращий за Best PnL на $${Math.abs(ourCurrentVsBest).toFixed(2)}.`
+            }
+          </span>`
+      }
+      <br><br>
+      <strong>Висновок:</strong>
+      ${bestPnL.id === bestRAR.id
+        ? `🎯 Один режим виграє і за PnL і за risk-adjusted — <strong style="color:${bestPnL.color}">${bestPnL.label}</strong>. Це твій кандидат для впровадження.`
+        : `🟡 Best PnL (${bestPnL.label}) і Best RAR (${bestRAR.label}) різні. Якщо тобі важливіша стабільність — обирай Best RAR. Якщо max прибуток і ти готовий до більших drawdowns — Best PnL.`
+      }
+    </div>
+  </div>`;
+
   content.innerHTML = html;
 }
 // ===============================================
