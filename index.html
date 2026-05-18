@@ -1,1546 +1,2226 @@
 <!DOCTYPE html>
 <html lang="uk">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Polymarket Strategy Finder v6.0 — Honest Backtest</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Polymarket Strategy Tester v5.3</title>
 <style>
-  :root {
-    --bg: #0a0e14;
-    --surface: #131820;
-    --surface-2: #1a212c;
-    --border: #2a3142;
-    --border-strong: #3a4456;
-    --text: #e6e9ef;
-    --text-dim: #9aa3b3;
-    --text-faint: #6b7280;
-    --accent: #00d4aa;
-    --accent-dim: #008f73;
-    --win: #10b981;
-    --loss: #ef4444;
-    --warn: #f59e0b;
-    --info: #3b82f6;
-    --mono: 'IBM Plex Mono', ui-monospace, monospace;
-    --sans: 'IBM Plex Sans', system-ui, sans-serif;
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  html, body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--sans);
-    font-size: 14px;
-    line-height: 1.5;
-    min-height: 100vh;
-  }
-
-  .container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 40px 24px 80px;
-  }
-
-  /* ========== HEADER ========== */
-  .header {
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 32px;
-    margin-bottom: 40px;
-  }
-  .header-title {
-    font-family: var(--mono);
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--accent);
-    text-transform: uppercase;
-    letter-spacing: 0.15em;
-    margin-bottom: 12px;
-  }
-  .header h1 {
-    font-family: var(--mono);
-    font-weight: 700;
-    font-size: 28px;
-    letter-spacing: -0.02em;
-    margin-bottom: 8px;
-  }
-  .header-sub {
-    color: var(--text-dim);
-    font-size: 14px;
-    max-width: 700px;
-  }
-  .header-sub strong {
-    color: var(--text);
-    font-weight: 600;
-  }
-
-  /* ========== CONFIG ========== */
-  .config {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 24px;
-    margin-bottom: 24px;
-  }
-
-  .section-title {
-    font-family: var(--mono);
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--text-dim);
-    margin-bottom: 14px;
-  }
-
-  .config-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    margin-bottom: 20px;
-  }
-  .config-row:last-child { margin-bottom: 0; }
-
-  .field label {
-    display: block;
-    font-size: 12px;
-    color: var(--text-dim);
-    margin-bottom: 6px;
-    font-weight: 500;
-  }
-
-  .btn-group {
-    display: flex;
-    gap: 4px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 3px;
-  }
-  .btn-group button {
-    flex: 1;
-    background: transparent;
-    border: none;
-    color: var(--text-dim);
-    font-family: var(--mono);
-    font-size: 12px;
-    font-weight: 500;
-    padding: 7px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-  }
-  .btn-group button:hover { color: var(--text); }
-  .btn-group button.active {
-    background: var(--surface-2);
-    color: var(--accent);
-    box-shadow: 0 0 0 1px var(--border-strong);
-  }
-
-  .advanced-toggle {
-    margin-top: 24px;
-    padding-top: 20px;
-    border-top: 1px dashed var(--border);
-    font-size: 12px;
-    color: var(--text-dim);
-    cursor: pointer;
-    user-select: none;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .advanced-toggle:hover { color: var(--text); }
-  .advanced-toggle .arrow {
-    font-family: var(--mono);
-    transition: transform 0.2s ease;
-  }
-  .advanced-toggle.open .arrow { transform: rotate(90deg); }
-  .advanced-body { display: none; margin-top: 20px; }
-  .advanced-body.open { display: block; }
-
-  .advanced-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
-  }
-
-  .input-wrap {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 8px 12px;
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-  }
-  .input-wrap input {
-    background: transparent;
-    border: none;
-    color: var(--text);
-    font-family: var(--mono);
-    font-size: 14px;
-    font-weight: 500;
-    width: 100%;
-    outline: none;
-  }
-  .input-wrap .suffix {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--text-faint);
-  }
-
-  /* ========== RUN BUTTON ========== */
-  .run-button {
-    width: 100%;
-    background: var(--accent);
-    color: #001a14;
-    border: none;
-    font-family: var(--mono);
-    font-weight: 700;
-    font-size: 15px;
-    letter-spacing: 0.05em;
-    padding: 18px 24px;
-    border-radius: 8px;
-    cursor: pointer;
-    text-transform: uppercase;
-    transition: all 0.15s ease;
-    margin-bottom: 24px;
-  }
-  .run-button:hover:not(:disabled) {
-    background: #00f0c0;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 24px rgba(0, 212, 170, 0.25);
-  }
-  .run-button:disabled {
-    background: var(--surface-2);
-    color: var(--text-faint);
-    cursor: not-allowed;
-  }
-
-  /* ========== PROGRESS ========== */
-  .progress {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 24px;
-    margin-bottom: 24px;
-    display: none;
-  }
-  .progress.active { display: block; }
-  .progress-phase {
-    font-family: var(--mono);
-    font-size: 13px;
-    color: var(--accent);
-    margin-bottom: 12px;
-  }
-  .progress-bar {
-    height: 4px;
-    background: var(--bg);
-    border-radius: 2px;
-    overflow: hidden;
-  }
-  .progress-bar-fill {
-    height: 100%;
-    background: var(--accent);
-    width: 0%;
-    transition: width 0.4s ease;
-  }
-  .progress-detail {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--text-dim);
-    margin-top: 8px;
-  }
-
-  /* ========== RESULTS ========== */
-  .results { display: none; }
-  .results.active { display: block; }
-
-  .verdict {
-    border-radius: 8px;
-    padding: 24px;
-    margin-bottom: 24px;
-    border: 1px solid var(--border);
-  }
-  .verdict-green {
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(16, 185, 129, 0.02));
-    border-color: var(--win);
-  }
-  .verdict-red {
-    background: linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(239, 68, 68, 0.02));
-    border-color: var(--loss);
-  }
-  .verdict-yellow {
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(245, 158, 11, 0.02));
-    border-color: var(--warn);
-  }
-  .verdict-icon {
-    font-family: var(--mono);
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    padding: 4px 10px;
-    border-radius: 4px;
-    display: inline-block;
-    margin-bottom: 14px;
-  }
-  .verdict-green .verdict-icon { background: var(--win); color: #001f10; }
-  .verdict-red .verdict-icon { background: var(--loss); color: #2b0606; }
-  .verdict-yellow .verdict-icon { background: var(--warn); color: #2c1c00; }
-
-  .verdict h2 {
-    font-family: var(--mono);
-    font-size: 20px;
-    font-weight: 600;
-    margin-bottom: 8px;
-  }
-  .verdict p {
-    color: var(--text-dim);
-    font-size: 14px;
-    line-height: 1.6;
-  }
-
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 24px;
-    margin-bottom: 16px;
-  }
-  .card-title {
-    font-family: var(--mono);
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--text-dim);
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  /* ========== TABLES ========== */
-  .table {
-    width: 100%;
-    border-collapse: collapse;
-    font-family: var(--mono);
-    font-size: 13px;
-  }
-  .table th {
-    text-align: left;
-    font-weight: 600;
-    color: var(--text-dim);
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    padding: 8px 12px 12px;
-    border-bottom: 1px solid var(--border);
-  }
-  .table td {
-    padding: 12px;
-    border-bottom: 1px solid var(--border);
-    color: var(--text);
-  }
-  .table tr:last-child td { border-bottom: none; }
-  .table tr.highlight {
-    background: rgba(0, 212, 170, 0.04);
-  }
-  .table tr.highlight td:first-child::before {
-    content: '★ ';
-    color: var(--accent);
-  }
-
-  .num-win { color: var(--win); }
-  .num-loss { color: var(--loss); }
-  .num-dim { color: var(--text-dim); }
-
-  /* ========== STRATEGY PARAMS ========== */
-  .params-block {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 16px 20px;
-    font-family: var(--mono);
-    font-size: 13px;
-    color: var(--text);
-    margin-top: 12px;
-    white-space: pre;
-    overflow-x: auto;
-    line-height: 1.7;
-  }
-  .params-block .key { color: var(--accent); }
-  .params-block .val { color: var(--text); }
-  .params-block .comment { color: var(--text-faint); }
-
-  .copy-btn {
-    background: var(--surface-2);
-    border: 1px solid var(--border-strong);
-    color: var(--text-dim);
-    font-family: var(--mono);
-    font-size: 11px;
-    padding: 6px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    margin-top: 12px;
-    transition: all 0.15s ease;
-  }
-  .copy-btn:hover {
-    color: var(--text);
-    border-color: var(--accent);
-  }
-
-  /* ========== STATS GRID ========== */
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    margin: 16px 0;
-  }
-  .stat-cell {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 14px 16px;
-  }
-  .stat-label {
-    font-family: var(--mono);
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--text-dim);
-    margin-bottom: 6px;
-  }
-  .stat-value {
-    font-family: var(--mono);
-    font-size: 20px;
-    font-weight: 600;
-  }
-
-  /* ========== ERROR ========== */
-  .error-banner {
-    background: rgba(239, 68, 68, 0.08);
-    border: 1px solid var(--loss);
-    border-radius: 6px;
-    padding: 12px 16px;
-    color: var(--loss);
-    font-family: var(--mono);
-    font-size: 13px;
-    margin-bottom: 16px;
-    display: none;
-  }
-  .error-banner.active { display: block; }
-
-  .footer-note {
-    margin-top: 40px;
-    padding-top: 24px;
-    border-top: 1px solid var(--border);
-    color: var(--text-faint);
-    font-size: 12px;
-    line-height: 1.6;
-  }
-
-  @media (max-width: 768px) {
-    .config-row { grid-template-columns: 1fr; }
-    .advanced-grid { grid-template-columns: 1fr; }
-    .stats-grid { grid-template-columns: repeat(2, 1fr); }
-  }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; padding: 2rem 1rem; }
+.container { max-width: 1100px; margin: 0 auto; }
+h1 { font-size: 1.4rem; font-weight: 600; margin-bottom: 1.5rem; }
+h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.75rem; }
+.card { background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; border: 1px solid #e5e5e5; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.grid4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; }
+label { font-size: 13px; color: #666; display: block; margin-bottom: 6px; }
+label strong { color: #1a1a1a; }
+select { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white; }
+input[type=range] { width: 100%; accent-color: #5856d6; }
+.btn-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-top: 0.5rem; }
+button { width: 100%; padding: 12px; background: #5856d6; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
+button:hover { background: #4a49c0; }
+button:disabled { background: #aaa; cursor: not-allowed; }
+button.secondary { background: #1a1a1a; }
+button.secondary:hover { background: #333; }
+button.tertiary { background: #ea580c; }
+button.tertiary:hover { background: #c2410c; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-bottom: 1rem; }
+.stat { background: #f8f8f8; border-radius: 8px; padding: 0.9rem; text-align: center; }
+.stat-label { font-size: 11px; color: #888; margin-bottom: 4px; }
+.stat-value { font-size: 20px; font-weight: 600; }
+.positive { color: #22c55e; } .negative { color: #ef4444; } .neutral { color: #1a1a1a; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { padding: 10px 12px; text-align: left; font-weight: 500; color: #888; border-bottom: 1px solid #eee; background: #fafafa; }
+td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
+.badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 500; }
+.badge-up { background: #dcfce7; color: #16a34a; } .badge-down { background: #fee2e2; color: #dc2626; }
+.badge-win { background: #dcfce7; color: #16a34a; } .badge-loss { background: #fee2e2; color: #dc2626; }
+.badge-good { background: #dcfce7; color: #16a34a; } .badge-bad { background: #fee2e2; color: #dc2626; } .badge-warn { background: #fef3c7; color: #b45309; }
+.error { background: #fee2e2; color: #dc2626; padding: 12px; border-radius: 8px; margin-bottom: 1rem; font-size: 14px; }
+.info { background: #eff6ff; color: #1d4ed8; padding: 10px 12px; border-radius: 8px; margin-bottom: 1rem; font-size: 13px; }
+.loading { text-align: center; padding: 2rem; color: #888; }
+#results { display: none; } #opt-results { display: none; } #stab-results { display: none; }
+.opt-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.opt-table th { padding: 8px 8px; text-align: left; font-weight: 500; color: #888; border-bottom: 1px solid #eee; background: #fafafa; white-space: nowrap; font-size: 11px; }
+.opt-table td { padding: 7px 8px; border-bottom: 1px solid #f0f0f0; cursor: pointer; white-space: nowrap; }
+.opt-table tr:hover td { background: #f0f4ff; }
+.opt-best td { background: #f0fdf4 !important; }
+.opt-table .div-col { border-left: 2px solid #ddd; }
+.wf-banner { background: #fff7ed; padding: 12px; border-radius: 8px; margin-bottom: 0.75rem; border: 1px solid #fed7aa; }
+.wf-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.daily-table th, .daily-table td { padding: 8px 10px; font-size: 12px; }
+.section-split { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+.section-title { font-size: 14px; font-weight: 600; color: #666; margin-bottom: 0.5rem; padding-bottom: 0.4rem; border-bottom: 2px solid #eee; }
+.section-train .section-title { border-bottom-color: #93c5fd; color: #1d4ed8; }
+.section-test .section-title { border-bottom-color: #fdba74; color: #c2410c; }
+.saved-banner { background: #f0fdf4; padding: 12px; border-radius: 8px; margin-bottom: 0.75rem; border: 1px solid #bbf7d0; }
+.saved-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.saved-chip { display: flex; align-items: center; gap: 6px; background: white; border: 1px solid #d1d5db; padding: 4px 10px; border-radius: 16px; font-size: 12px; }
+.saved-chip-name { font-weight: 500; }
+.saved-chip-params { color: #6b7280; font-size: 11px; }
+.saved-chip-remove { background: none; border: none; color: #ef4444; cursor: pointer; padding: 0 0 0 4px; font-size: 14px; line-height: 1; width: auto; }
+.combo-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 1rem; }
+.strat-breakdown-row { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; }
+.strat-breakdown-name { font-weight: 500; margin-bottom: 4px; }
+.strat-breakdown-stats { display: flex; gap: 12px; font-size: 12px; color: #666; flex-wrap: wrap; }
+@media (max-width: 720px) { .section-split { grid-template-columns: 1fr; } .btn-row { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
 <div class="container">
+<h1>Polymarket Strategy Tester v5.3 — k-fold + adaptive filters + stop-loss test</h1>
 
-  <!-- ========== HEADER ========== -->
-  <div class="header">
-    <div class="header-title">Polymarket / Honest Backtest Engine</div>
-    <h1>Strategy Finder v6.0</h1>
-    <p class="header-sub">
-      Симулює <strong>точно</strong> ту логіку що реальний бот виконує: trigger-based вхід (перший момент де умови виконані), без post-hoc cherry-picking. 
-      Параметри оптимізуються на train-наборі, валідація на out-of-sample test даних.
-    </p>
+<div class="card">
+  <div class="grid4" style="margin-bottom:1rem">
+    <div><label>Актив</label>
+      <select id="asset" onchange="clearCache()">
+        <option value="btc">BTC</option><option value="eth">ETH</option>
+        <option value="sol">SOL</option><option value="xrp">XRP</option>
+      </select></div>
+    <div><label>Таймфрейм</label>
+      <select id="timeframe" onchange="onTfChange();clearCache()">
+        <option value="5m">5m</option><option value="15m">15m</option>
+      </select></div>
+    <div><label>Макс. вікон</label>
+      <select id="limit">
+        <option value="50">50</option><option value="100">100</option>
+        <option value="200">200</option><option value="500" selected>500</option>
+        <option value="1000">1000</option><option value="5000">5000</option>
+      </select></div>
+    <div><label>Напрямок</label>
+      <select id="direction">
+        <option value="any">Будь-який (дешевший)</option>
+        <option value="up_only">Тільки UP</option>
+        <option value="down_only">Тільки DOWN</option>
+        <option value="follow">Follow asset</option>
+        <option value="contrarian">Contrarian</option>
+      </select></div>
+  </div>
+  <div class="grid2" style="margin-bottom:1rem">
+    <div><label>Мін. ціна входу: <strong id="emin-v">0.75</strong></label>
+      <input type="range" id="emin" min="0.50" max="0.95" step="0.05" value="0.75"></div>
+    <div><label>Макс. ціна входу: <strong id="emax-v">0.85</strong></label>
+      <input type="range" id="emax" min="0.55" max="0.99" step="0.05" value="0.85"></div>
+    <div><label>Час від (sec to close): <strong id="tmin-v">160</strong>s</label>
+      <input type="range" id="tmin" min="0" max="280" step="20" value="160"></div>
+    <div><label>Час до (sec to close): <strong id="tmax-v">300</strong>s</label>
+      <input type="range" id="tmax" min="20" max="300" step="20" value="300"></div>
+    <div><label>Мін. delta %: <strong id="delta-v">0.07</strong>%</label>
+      <input type="range" id="delta" min="0" max="0.20" step="0.01" value="0.07"></div>
+    <div><label>Ставка: <strong id="pos-v">$10</strong></label>
+      <input type="range" id="pos" min="1" max="100" step="1" value="10"></div>
   </div>
 
-  <!-- ========== CONFIG ========== -->
-  <div class="config">
-    <div class="section-title">Конфігурація</div>
+  <div style="margin-bottom:0.75rem;padding:10px 12px;background:#f0f4ff;border-radius:8px;display:flex;align-items:center;gap:10px">
+    <input type="checkbox" id="regime-filter" style="width:16px;height:16px;accent-color:#5856d6;cursor:pointer">
+    <label for="regime-filter" style="font-size:13px;color:#1a1a1a;cursor:pointer;margin:0">
+      <strong>Режим-фільтр</strong> — враховувати напрямок ринку за останні 4 години
+      <span style="font-size:11px;color:#666;margin-left:6px">(strong_bull→UP | weak_bull→обидва | strong_bear→DOWN | weak_bear→UP | chop→пропуск)</span>
+    </label>
+  </div>
 
-    <div class="config-row">
-      <div class="field">
-        <label>Актив</label>
-        <div class="btn-group" id="asset-group">
-          <button data-value="btc" class="active">BTC</button>
-          <button data-value="eth">ETH</button>
-          <button data-value="sol">SOL</button>
-          <button data-value="xrp">XRP</button>
-        </div>
+  <div class="saved-banner">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div style="font-size:13px;color:#1a1a1a">
+        <strong>📊 Мої стратегії (shadow backtest)</strong>
+        <span style="font-size:11px;color:#666;margin-left:6px">— зберігай комбінації щоб порівнювати з live ботом</span>
       </div>
-
-      <div class="field">
-        <label>Timeframe</label>
-        <div class="btn-group" id="tf-group">
-          <button data-value="5m" class="active">5m</button>
-          <button data-value="15m">15m</button>
-        </div>
+      <div style="display:flex;gap:6px">
+        <button onclick="saveCurrentStrategy()" style="padding:6px 12px;font-size:12px;background:#16a34a;width:auto">💾 Зберегти поточну</button>
+        <button onclick="runComboBacktest()" style="padding:6px 12px;font-size:12px;background:#ea580c;width:auto" id="combo-btn">▶️ Combined backtest</button>
       </div>
     </div>
+    <div class="saved-list" id="saved-list"></div>
+  </div>
 
-    <div class="advanced-toggle" id="advanced-toggle">
-      <span class="arrow">▶</span>
-      <span>Налаштування реалізму (default — обережні)</span>
+  <div class="wf-banner">
+    <div class="wf-row">
+      <input type="checkbox" id="walkforward" style="width:16px;height:16px;accent-color:#ea580c;cursor:pointer">
+      <label for="walkforward" style="font-size:13px;color:#1a1a1a;cursor:pointer;margin:0">
+        <strong>Walk-forward валідація</strong> — auto-optimize шукає на train, перевіряє на test (out-of-sample)
+        <span style="font-size:11px;color:#666;margin-left:6px">Чесна перевірка від overfitting</span>
+      </label>
     </div>
-
-    <div class="advanced-body" id="advanced-body">
-      <div class="advanced-grid">
-        <div class="field">
-          <label>Slippage (price → price + slip)</label>
-          <div class="input-wrap">
-            <input type="number" id="slippage" value="0.005" step="0.001" min="0" max="0.05" />
-            <span class="suffix">¢</span>
-          </div>
-        </div>
-        <div class="field">
-          <label>FOK fail rate (random skip)</label>
-          <div class="input-wrap">
-            <input type="number" id="fokRate" value="0.10" step="0.01" min="0" max="0.5" />
-            <span class="suffix">×</span>
-          </div>
-        </div>
-        <div class="field">
-          <label>Bet size (для PnL розрахунку)</label>
-          <div class="input-wrap">
-            <input type="number" id="betSize" value="10" step="1" min="1" max="100" />
-            <span class="suffix">$</span>
-          </div>
-        </div>
-        <div class="field">
-          <label>Train/Test split</label>
-          <div class="input-wrap">
-            <input type="number" id="trainRatio" value="0.70" step="0.05" min="0.5" max="0.85" />
-            <span class="suffix">% train</span>
-          </div>
-        </div>
-        <div class="field">
-          <label>Top-N кандидатів для k-fold</label>
-          <div class="input-wrap">
-            <input type="number" id="topN" value="25" step="5" min="5" max="100" />
-            <span class="suffix">str.</span>
-          </div>
-        </div>
-        <div class="field">
-          <label>Min trades per k-fold group</label>
-          <div class="input-wrap">
-            <input type="number" id="minTrades" value="10" step="5" min="1" max="100" />
-            <span class="suffix">tr.</span>
-          </div>
-        </div>
-      </div>
+    <div style="display:flex;align-items:center;gap:10px;font-size:13px">
+      <span style="color:#1d4ed8;font-weight:500">Train: <strong id="train-v">70</strong>%</span>
+      <input type="range" id="train-pct" min="50" max="85" step="5" value="70" style="accent-color:#ea580c;flex:1">
+      <span style="color:#c2410c;font-weight:500">Test: <strong id="test-v">30</strong>%</span>
     </div>
   </div>
 
-  <button class="run-button" id="runBtn">🚀 Запустити чесний пошук</button>
-
-  <div class="error-banner" id="errorBanner"></div>
-
-  <!-- ========== PROGRESS ========== -->
-  <div class="progress" id="progress">
-    <div class="progress-phase" id="progressPhase">Завантаження...</div>
-    <div class="progress-bar"><div class="progress-bar-fill" id="progressFill"></div></div>
-    <div class="progress-detail" id="progressDetail">—</div>
+  <div class="btn-row">
+    <button id="run-btn" onclick="runAnalysis()">Запустити аналіз</button>
+    <button id="opt-btn" class="secondary" onclick="runOptimize()">🔍 Auto-optimize</button>
+    <button id="stab-btn" class="tertiary" onclick="runStability()">📊 Стабільність по днях</button>
+    <button id="kfold-btn" onclick="runKFold()" style="background:#7c3aed">🎯 K-fold (4 групи)</button>
   </div>
-
-  <!-- ========== RESULTS ========== -->
-  <div class="results" id="results"></div>
-
-  <div class="footer-note">
-    Backtest engine використовує market_snapshots з Supabase. Симулюється trigger-based вхід (перший snapshot де всі умови виконуються) — без знання майбутнього. Direction = за delta в момент входу. WIN/LOSS визначається через final_direction який оновлюється після закриття вікна.
+  <div class="btn-row" style="margin-top:8px;grid-template-columns:1fr 1fr">
+    <button id="kfopt-quick-btn" onclick="runKFoldOptimizer(false)" style="background:linear-gradient(135deg,#7c3aed 0%,#3b82f6 100%);font-weight:600">🚀 Quick K-fold Search</button>
+    <button id="kfopt-strict-btn" onclick="runKFoldOptimizer(true)" style="background:linear-gradient(135deg,#dc2626 0%,#7c3aed 100%);font-weight:600">🔬 Strict K-fold Search</button>
   </div>
 </div>
 
-<script>
-// ============================================================
-// CONFIG
-// ============================================================
-const SUPABASE_URL = 'https://nteqbaiuindiumdnkbsc.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZXFiYWl1aW5kaXVtZG5rYnNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3MjI5NTUsImV4cCI6MjA5MTI5ODk1NX0.dsavxNCSZhJTvd1pa--W9D_myB1esbiaah-umGeWmXU';
+<div id="error-msg" class="error" style="display:none"></div>
+<div id="info-msg" class="info" style="display:none"></div>
+<div id="loading" class="loading" style="display:none"></div>
 
-// ============================================================
-// STATE
-// ============================================================
-let selectedAsset = 'btc';
-let selectedTimeframe = '5m';
-
-// ============================================================
-// UI EVENT HANDLERS
-// ============================================================
-document.querySelectorAll('#asset-group button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#asset-group button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    selectedAsset = btn.dataset.value;
-  });
-});
-
-document.querySelectorAll('#tf-group button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#tf-group button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    selectedTimeframe = btn.dataset.value;
-  });
-});
-
-document.getElementById('advanced-toggle').addEventListener('click', () => {
-  document.getElementById('advanced-toggle').classList.toggle('open');
-  document.getElementById('advanced-body').classList.toggle('open');
-});
-
-document.getElementById('runBtn').addEventListener('click', runSearch);
-
-// ============================================================
-// PROGRESS UI
-// ============================================================
-function setProgress(phase, percent, detail) {
-  const progressEl = document.getElementById('progress');
-  progressEl.classList.add('active');
-  document.getElementById('progressPhase').textContent = phase;
-  document.getElementById('progressFill').style.width = percent + '%';
-  document.getElementById('progressDetail').textContent = detail || '—';
-}
-
-function hideProgress() {
-  document.getElementById('progress').classList.remove('active');
-}
-
-function showError(msg) {
-  const el = document.getElementById('errorBanner');
-  el.textContent = '⚠ ' + msg;
-  el.classList.add('active');
-  hideProgress();
-  document.getElementById('runBtn').disabled = false;
-}
-
-function clearError() {
-  const el = document.getElementById('errorBanner');
-  el.classList.remove('active');
-  el.textContent = '';
-}
-
-// ============================================================
-// DATA FETCHING
-// ============================================================
-async function fetchAllSnapshots(asset, timeframe) {
-  // Тягне ВСІ resolved snapshots (final_direction IS NOT NULL)
-  // Paginated по 1000 rows
-  const allRows = [];
-  let from = 0;
-  const pageSize = 1000;
-  
-  while (true) {
-    const url = `${SUPABASE_URL}/rest/v1/market_snapshots` +
-      `?select=window_ts,seconds_to_close,delta_pct,up_ask,down_ask,up_liq,down_liq,predicted_direction,final_direction` +
-      `&asset=eq.${asset}` +
-      `&timeframe=eq.${timeframe}` +
-      `&final_direction=not.is.null` +
-      `&order=window_ts.asc,seconds_to_close.desc` +
-      `&offset=${from}&limit=${pageSize}`;
-    
-    const res = await fetch(url, {
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-      },
-    });
-    
-    if (!res.ok) {
-      throw new Error(`Supabase error: ${res.status} ${res.statusText}`);
-    }
-    
-    const data = await res.json();
-    allRows.push(...data);
-    
-    setProgress('Завантаження даних...', Math.min(20, allRows.length / 500),
-      `${allRows.length.toLocaleString()} snapshots`);
-    
-    if (data.length < pageSize) break;
-    from += pageSize;
-    
-    // Safety limit
-    if (allRows.length > 200000) {
-      console.warn('Reached safety limit of 200k rows');
-      break;
-    }
-  }
-  
-  return allRows;
-}
-
-// Групуємо snapshots по window_ts
-function groupWindows(rows) {
-  const byWindow = new Map();
-  
-  for (const r of rows) {
-    if (!byWindow.has(r.window_ts)) {
-      byWindow.set(r.window_ts, {
-        window_ts: r.window_ts,
-        final_direction: r.final_direction,
-        snapshots: [],
-      });
-    }
-    byWindow.get(r.window_ts).snapshots.push(r);
-  }
-  
-  // Сортуємо snapshots всередині кожного вікна від найраніше до найпізніше
-  // (seconds_to_close DESC = window_open → window_close)
-  for (const w of byWindow.values()) {
-    w.snapshots.sort((a, b) => b.seconds_to_close - a.seconds_to_close);
-  }
-  
-  return Array.from(byWindow.values())
-    .sort((a, b) => a.window_ts - b.window_ts);
-}
-
-// ============================================================
-// SIMULATION: TRIGGER-BASED ENTRY
-// ============================================================
-
-// Deterministic random (для repeatability FOK simulation)
-function mulberry32(seed) {
-  return function() {
-    let t = seed += 0x6D2B79F5;
-    t = Math.imul(t ^ t >>> 15, t | 1);
-    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
-
-/**
- * Симулює реального бота на одному вікні.
- * Іде по snapshots хронологічно і входить у ПЕРШИЙ snapshot де всі умови виконуються.
- * No look-ahead.
- */
-function simulateWindow(window, params) {
-  for (const snap of window.snapshots) {
-    // Бот моніторить тільки в [tmin, tmax]
-    if (snap.seconds_to_close < params.tmin) continue;
-    if (snap.seconds_to_close > params.tmax) continue;
-    
-    // Direction визначається за delta в момент snapshot (без peek)
-    const absDelta = Math.abs(snap.delta_pct);
-    if (absDelta < params.min_delta) continue;
-    
-    const direction = snap.delta_pct >= 0 ? 'up' : 'down';
-    const entry = direction === 'up' ? snap.up_ask : snap.down_ask;
-    const liq = direction === 'up' ? snap.up_liq : snap.down_liq;
-    
-    if (entry === null || entry === undefined) continue;
-    if (entry < params.emin || entry > params.emax) continue;
-    if (liq !== null && liq !== undefined && liq < params.min_liquidity) continue;
-    
-    // FOK fail simulation (deterministic per-window for repeatability)
-    if (params.fok_fail_rate > 0) {
-      const rng = mulberry32(window.window_ts);
-      if (rng() < params.fok_fail_rate) {
-        return { status: 'fok_failed', window_ts: window.window_ts };
-      }
-    }
-    
-    // Slippage
-    const actualEntry = entry + (params.slippage || 0);
-    if (actualEntry > params.emax) continue;
-    if (actualEntry >= 1.0) continue; // не може купувати за $1+
-    
-    // PnL: купуємо за actualEntry, отримуємо $1 якщо WIN, $0 якщо LOSS
-    const won = direction === window.final_direction;
-    const pnlPerShare = won ? (1.0 / actualEntry - 1) : -1;
-    
-    return {
-      status: 'traded',
-      window_ts: window.window_ts,
-      entry_at: snap.seconds_to_close,
-      entry_price: actualEntry,
-      direction,
-      delta_at_entry: absDelta,
-      won,
-      pnl_per_share: pnlPerShare,
-    };
-  }
-  
-  return { status: 'no_signal', window_ts: window.window_ts };
-}
-
-/**
- * Оцінює стратегію на наборі вікон.
- * Повертає {trades, wins, losses, fok_fails, no_signal, pnl, win_rate, max_dd}
- */
-function evaluateStrategy(windows, params, betSize = 10) {
-  const trades = [];
-  let wins = 0;
-  let losses = 0;
-  let fokFails = 0;
-  let noSignals = 0;
-  let totalPnl = 0;
-  
-  for (const w of windows) {
-    const r = simulateWindow(w, params);
-    if (r.status === 'traded') {
-      r.pnl = r.pnl_per_share * betSize;
-      r.bet = betSize;
-      trades.push(r);
-      if (r.won) { wins++; } else { losses++; }
-      totalPnl += r.pnl;
-    } else if (r.status === 'fok_failed') {
-      fokFails++;
-    } else {
-      noSignals++;
-    }
-  }
-  
-  // Max drawdown
-  let peak = 0;
-  let cum = 0;
-  let maxDD = 0;
-  for (const t of trades) {
-    cum += t.pnl;
-    if (cum > peak) peak = cum;
-    const dd = peak - cum;
-    if (dd > maxDD) maxDD = dd;
-  }
-  
-  const total = wins + losses;
-  return {
-    trades,
-    wins,
-    losses,
-    fok_fails: fokFails,
-    no_signal: noSignals,
-    total_executed: total,
-    pnl: totalPnl,
-    win_rate: total > 0 ? wins / total : 0,
-    max_dd: maxDD,
-    pnl_dd_ratio: maxDD > 0 ? totalPnl / maxDD : (totalPnl > 0 ? Infinity : 0),
-  };
-}
-
-// ============================================================
-// PARAMETER GRID
-// ============================================================
-function generateGrid(tfDuration) {
-  const grid = [];
-  const deltas = [0.03, 0.05, 0.07, 0.09, 0.11, 0.13, 0.15];
-  const emins = [0.65, 0.70, 0.75, 0.80];
-  const emaxs = [0.88, 0.92, 0.95];
-  
-  // Adjust tmin/tmax based on timeframe (5m=300, 15m=900)
-  const tminCandidates = tfDuration === 300 ? [20, 40, 60, 90, 120] : [30, 90, 150, 240, 360];
-  const tmaxCandidates = tfDuration === 300 ? [180, 240, 290] : [600, 750, 870];
-  
-  for (const min_delta of deltas) {
-    for (const emin of emins) {
-      for (const emax of emaxs) {
-        if (emax <= emin + 0.05) continue;
-        for (const tmin of tminCandidates) {
-          for (const tmax of tmaxCandidates) {
-            if (tmax <= tmin + 60) continue;
-            grid.push({ min_delta, emin, emax, tmin, tmax });
-          }
-        }
-      }
-    }
-  }
-  
-  return grid;
-}
-
-// ============================================================
-// WALK-FORWARD SPLIT
-// ============================================================
-function splitWindows(windows, trainRatio) {
-  // Sort by window_ts ascending
-  const sorted = [...windows].sort((a, b) => a.window_ts - b.window_ts);
-  const cutoffIdx = Math.floor(sorted.length * trainRatio);
-  return {
-    train: sorted.slice(0, cutoffIdx),
-    test: sorted.slice(cutoffIdx),
-    trainEndTs: sorted[cutoffIdx - 1]?.window_ts,
-    testStartTs: sorted[cutoffIdx]?.window_ts,
-  };
-}
-
-// ============================================================
-// K-FOLD VALIDATION ON TRAIN
-// ============================================================
-function kFoldValidate(windows, params, k, betSize, minTradesPerGroup) {
-  const sorted = [...windows].sort((a, b) => a.window_ts - b.window_ts);
-  const groupSize = Math.floor(sorted.length / k);
-  const groups = [];
-  
-  for (let i = 0; i < k; i++) {
-    const start = i * groupSize;
-    const end = (i === k - 1) ? sorted.length : start + groupSize;
-    groups.push(sorted.slice(start, end));
-  }
-  
-  const groupStats = groups.map(g => evaluateStrategy(g, params, betSize));
-  const profitableGroups = groupStats.filter(s => s.pnl > 0).length;
-  const enoughTrades = groupStats.every(s => s.total_executed >= minTradesPerGroup);
-  const minPnl = Math.min(...groupStats.map(s => s.pnl));
-  const minWR = Math.min(...groupStats.map(s => s.win_rate || 0));
-  const maxWR = Math.max(...groupStats.map(s => s.win_rate || 0));
-  
-  return {
-    groups: groupStats,
-    profitable_groups: profitableGroups,
-    min_group_pnl: minPnl,
-    min_group_wr: minWR,
-    max_group_wr: maxWR,
-    wr_spread: maxWR - minWR,
-    enough_trades: enoughTrades,
-    passed: profitableGroups === k && enoughTrades,
-  };
-}
-
-// ============================================================
-// STOP-LOSS MODES
-// ============================================================
-function applyStopLoss(trades, mode) {
-  if (mode === 'pure') {
-    return { trades: trades.slice(), skipped: 0 };
-  }
-  
-  // Sort by window_ts
-  const sorted = [...trades].sort((a, b) => a.window_ts - b.window_ts);
-  
-  let consecLosses = 0;
-  let cooldownUntil = 0;
-  let dailyPnl = 0;
-  let currentDay = null;
-  let dailyPaused = false;
-  let betMultiplier = 1.0;
-  
-  const result = [];
-  let skipped = 0;
-  
-  for (const t of sorted) {
-    const day = Math.floor(t.window_ts / 86400);
-    if (currentDay !== day) {
-      currentDay = day;
-      dailyPnl = 0;
-      dailyPaused = false;
-    }
-    
-    // Check pause conditions
-    if (mode === 'cooldown_2_loss' && t.window_ts < cooldownUntil) {
-      skipped++;
-      continue;
-    }
-    if (mode === 'daily_-10' && dailyPaused) {
-      skipped++;
-      continue;
-    }
-    
-    // Determine bet size adjustment
-    let adjBet = t.bet;
-    if (mode === 'half_after_3_loss' && consecLosses >= 3) {
-      adjBet = t.bet / 2;
-    }
-    
-    // Recalculate PnL with adjusted bet
-    const adjPnl = t.pnl_per_share * adjBet;
-    
-    result.push({ ...t, bet: adjBet, pnl: adjPnl });
-    dailyPnl += adjPnl;
-    
-    if (mode === 'daily_-10' && dailyPnl <= -10) {
-      dailyPaused = true;
-    }
-    
-    if (t.won) {
-      consecLosses = 0;
-    } else {
-      consecLosses++;
-      if (mode === 'cooldown_2_loss' && consecLosses >= 2) {
-        cooldownUntil = t.window_ts + 1800; // 30 min
-        consecLosses = 0;
-      }
-    }
-  }
-  
-  return { trades: result, skipped };
-}
-
-function summarizeStopLoss(stopLossResult) {
-  const trades = stopLossResult.trades;
-  const wins = trades.filter(t => t.won).length;
-  const losses = trades.filter(t => !t.won).length;
-  const totalPnl = trades.reduce((s, t) => s + t.pnl, 0);
-  
-  let peak = 0, cum = 0, maxDD = 0;
-  for (const t of trades) {
-    cum += t.pnl;
-    if (cum > peak) peak = cum;
-    const dd = peak - cum;
-    if (dd > maxDD) maxDD = dd;
-  }
-  
-  return {
-    executed: trades.length,
-    skipped: stopLossResult.skipped,
-    wins,
-    losses,
-    win_rate: (wins + losses) > 0 ? wins / (wins + losses) : 0,
-    pnl: totalPnl,
-    max_dd: maxDD,
-    pnl_dd: maxDD > 0 ? totalPnl / maxDD : (totalPnl > 0 ? Infinity : 0),
-  };
-}
-
-// ============================================================
-// MAIN SEARCH FUNCTION
-// ============================================================
-async function runSearch() {
-  clearError();
-  document.getElementById('runBtn').disabled = true;
-  document.getElementById('results').classList.remove('active');
-  document.getElementById('results').innerHTML = '';
-  
-  try {
-    // Read advanced params
-    const slippage = parseFloat(document.getElementById('slippage').value) || 0.005;
-    const fokRate = parseFloat(document.getElementById('fokRate').value) || 0.10;
-    const betSize = parseFloat(document.getElementById('betSize').value) || 10;
-    const trainRatio = parseFloat(document.getElementById('trainRatio').value) || 0.70;
-    const topN = parseInt(document.getElementById('topN').value) || 25;
-    const minTrades = parseInt(document.getElementById('minTrades').value) || 10;
-    
-    const tfDuration = selectedTimeframe === '5m' ? 300 : 900;
-    
-    // ===== PHASE 1: Load data =====
-    setProgress('Phase 1/6 — Завантаження даних', 5, `${selectedAsset.toUpperCase()} ${selectedTimeframe}`);
-    const rows = await fetchAllSnapshots(selectedAsset, selectedTimeframe);
-    
-    if (rows.length === 0) {
-      throw new Error(`Жодного resolved snapshot для ${selectedAsset.toUpperCase()} ${selectedTimeframe}. Перевір що monitor працює і final_direction оновлюється.`);
-    }
-    
-    setProgress('Phase 1/6 — Групую вікна', 15, `${rows.length.toLocaleString()} snapshots`);
-    const allWindows = groupWindows(rows);
-    
-    if (allWindows.length < 50) {
-      throw new Error(`Недостатньо вікон: ${allWindows.length}. Потрібно мінімум 50 для walk-forward.`);
-    }
-    
-    // ===== PHASE 2: Walk-forward split =====
-    setProgress('Phase 2/6 — Walk-forward split', 18, `${(trainRatio*100)|0}% train / ${(100-trainRatio*100)|0}% test`);
-    const { train, test, trainEndTs, testStartTs } = splitWindows(allWindows, trainRatio);
-    
-    if (test.length < 20) {
-      throw new Error(`Test set замалий: ${test.length} вікон. Зменш train ratio або зачекай більше даних.`);
-    }
-    
-    // Wait briefly so user sees the progress update
-    await new Promise(r => setTimeout(r, 100));
-    
-    // ===== PHASE 3: Grid optimization on TRAIN =====
-    const grid = generateGrid(tfDuration);
-    setProgress('Phase 3/6 — Optimization на train', 20, `${grid.length} комбінацій параметрів`);
-    
-    const candidates = [];
-    let processed = 0;
-    
-    for (const params of grid) {
-      const fullParams = {
-        ...params,
-        slippage,
-        fok_fail_rate: fokRate,
-        min_liquidity: 100, // мінімальна liq щоб FOK не падав
-      };
-      
-      const stats = evaluateStrategy(train, fullParams, betSize);
-      if (stats.total_executed >= minTrades) {
-        candidates.push({ params: fullParams, train: stats });
-      }
-      
-      processed++;
-      if (processed % 50 === 0) {
-        setProgress('Phase 3/6 — Optimization на train', 
-          20 + 35 * processed / grid.length,
-          `${processed}/${grid.length} | ${candidates.length} valid`);
-        await new Promise(r => setTimeout(r, 0)); // yield to UI
-      }
-    }
-    
-    if (candidates.length === 0) {
-      showVerdict('red', 'No edge', `Жодна стратегія не зробила ≥${minTrades} трейдів на train (${train.length} вікон). Зменш мін. delta або min trades.`);
-      hideProgress();
-      document.getElementById('runBtn').disabled = false;
-      return;
-    }
-    
-    // Sort by train PnL/DD ratio (risk-adjusted), with min PnL > 0
-    candidates.sort((a, b) => {
-      if (a.train.pnl <= 0 && b.train.pnl > 0) return 1;
-      if (a.train.pnl > 0 && b.train.pnl <= 0) return -1;
-      return b.train.pnl_dd_ratio - a.train.pnl_dd_ratio;
-    });
-    
-    const topCandidates = candidates.slice(0, topN);
-    
-    // ===== PHASE 4: K-fold validation on TRAIN =====
-    setProgress('Phase 4/6 — K-fold перевірка на train', 60, `${topCandidates.length} top кандидатів`);
-    await new Promise(r => setTimeout(r, 100));
-    
-    const robust = [];
-    for (const c of topCandidates) {
-      const kf = kFoldValidate(train, c.params, 4, betSize, Math.max(2, Math.floor(minTrades / 4)));
-      if (kf.passed) {
-        robust.push({ ...c, kfold: kf });
-      }
-    }
-    
-    if (robust.length === 0) {
-      showVerdict('red', 'Edge не робастний',
-        `${topCandidates.length} стратегій виглядали добре на train, але ЖОДНА не пройшла k-fold (4/4 групи прибуткові). Це означає що стратегії overfit на конкретні дні. Реального робастного edge немає.`);
-      hideProgress();
-      document.getElementById('runBtn').disabled = false;
-      return;
-    }
-    
-    // ===== PHASE 5: Out-of-sample on TEST =====
-    setProgress('Phase 5/6 — Out-of-sample валідація на test', 75, `${robust.length} робастних → перевірка на test`);
-    await new Promise(r => setTimeout(r, 100));
-    
-    for (const r of robust) {
-      r.test = evaluateStrategy(test, r.params, betSize);
-    }
-    
-    // Sort by test PnL (out-of-sample реальність)
-    robust.sort((a, b) => b.test.pnl - a.test.pnl);
-    const best = robust[0];
-    
-    // ===== PHASE 6: Slippage stress + Stop-loss =====
-    setProgress('Phase 6/6 — Stress tests', 85, 'Slippage + Stop-loss');
-    
-    // Slippage stress on TEST
-    const slippageStress = {};
-    for (const slip of [0, 0.005, 0.010, 0.020]) {
-      const stressParams = { ...best.params, slippage: slip };
-      slippageStress[slip] = evaluateStrategy(test, stressParams, betSize);
-    }
-    
-    // Stop-loss optimization: pick best on TRAIN, validate on TEST
-    const slModes = ['pure', 'cooldown_2_loss', 'half_after_3_loss', 'daily_-10'];
-    const slTrain = {};
-    const slTest = {};
-    
-    // First evaluate base trades (no SL) on train and test
-    const trainTrades = evaluateStrategy(train, best.params, betSize).trades;
-    const testTrades = evaluateStrategy(test, best.params, betSize).trades;
-    
-    for (const mode of slModes) {
-      slTrain[mode] = summarizeStopLoss(applyStopLoss(trainTrades, mode));
-      slTest[mode] = summarizeStopLoss(applyStopLoss(testTrades, mode));
-    }
-    
-    // Pick best SL based on TRAIN pnl_dd ratio
-    let bestSlMode = 'pure';
-    let bestTrainPnlDd = slTrain['pure'].pnl_dd;
-    for (const mode of slModes) {
-      if (slTrain[mode].pnl_dd > bestTrainPnlDd) {
-        bestTrainPnlDd = slTrain[mode].pnl_dd;
-        bestSlMode = mode;
-      }
-    }
-    
-    setProgress('Phase 6/6 — Finalizing', 100, 'Generating report...');
-    await new Promise(r => setTimeout(r, 200));
-    hideProgress();
-    
-    // ===== RENDER RESULTS =====
-    renderResults({
-      best,
-      robust,
-      train,
-      test,
-      allWindows,
-      trainEndTs,
-      testStartTs,
-      slippageStress,
-      slTrain,
-      slTest,
-      bestSlMode,
-      betSize,
-      asset: selectedAsset,
-      timeframe: selectedTimeframe,
-    });
-    
-  } catch (err) {
-    console.error(err);
-    showError(err.message || String(err));
-  } finally {
-    document.getElementById('runBtn').disabled = false;
-  }
-}
-
-// ============================================================
-// RENDER RESULTS
-// ============================================================
-function fmtPnl(v) {
-  const sign = v >= 0 ? '+' : '';
-  const cls = v >= 0 ? 'num-win' : 'num-loss';
-  return `<span class="${cls}">${sign}$${v.toFixed(2)}</span>`;
-}
-
-function fmtWR(wr, total) {
-  if (total === 0) return '<span class="num-dim">—</span>';
-  const pct = (wr * 100).toFixed(1);
-  const cls = wr >= 0.7 ? 'num-win' : (wr >= 0.55 ? '' : 'num-loss');
-  return `<span class="${cls}">${pct}%</span>`;
-}
-
-function fmtDate(ts) {
-  return new Date(ts * 1000).toISOString().replace('T', ' ').slice(0, 16);
-}
-
-function showVerdict(color, title, text) {
-  const container = document.getElementById('results');
-  container.classList.add('active');
-  const icon = color === 'green' ? 'EDGE FOUND' : (color === 'red' ? 'NO EDGE' : 'MARGINAL');
-  container.innerHTML = `
-    <div class="verdict verdict-${color}">
-      <div class="verdict-icon">${icon}</div>
-      <h2>${title}</h2>
-      <p>${text}</p>
+<div id="opt-results">
+  <div class="card">
+    <div style="font-size:13px;color:#888;margin-bottom:12px" id="opt-info"></div>
+    <div style="overflow-x:auto">
+      <table class="opt-table">
+        <thead><tr id="opt-head"></tr></thead>
+        <tbody id="opt-body"></tbody>
+      </table>
     </div>
-  `;
-}
+    <div style="font-size:12px;color:#888;margin-top:8px">Клікни на рядок щоб застосувати параметри і запустити аналіз</div>
+  </div>
+</div>
 
-function renderResults(data) {
-  const { best, robust, train, test, slippageStress, slTrain, slTest, bestSlMode, betSize, asset, timeframe, trainEndTs, testStartTs, allWindows } = data;
-  
-  const container = document.getElementById('results');
-  container.classList.add('active');
-  
-  // Determine verdict
-  let verdictColor, verdictTitle, verdictText;
-  const testPnl = best.test.pnl;
-  const trainPnl = best.train.pnl;
-  const pnlDropPct = trainPnl > 0 ? ((trainPnl - testPnl) / trainPnl * 100) : 100;
-  const slip10Pnl = slippageStress[0.010].pnl;
-  
-  if (testPnl <= 0) {
-    verdictColor = 'red';
-    verdictTitle = 'Edge не знайдено на out-of-sample';
-    verdictText = `Train показав ${fmtPnl(trainPnl)}, але test PnL = ${fmtPnl(testPnl)}. Стратегія не переходить на майбутні дні — overfit.`;
-  } else if (slip10Pnl <= 0) {
-    verdictColor = 'red';
-    verdictTitle = 'Edge зникає з реальним slippage';
-    verdictText = `Test PnL = ${fmtPnl(testPnl)} зі slippage 0.005, але при slippage 0.010 (реалістичний для Polymarket) — ${fmtPnl(slip10Pnl)}. Edge надто тонкий для практичної торгівлі.`;
-  } else if (pnlDropPct > 70) {
-    verdictColor = 'yellow';
-    verdictTitle = 'Слабкий edge, обережно';
-    verdictText = `Test PnL = ${fmtPnl(testPnl)} — позитивно, але це лише ${(100-pnlDropPct).toFixed(0)}% від train PnL. Велика втрата edge на out-of-sample. Можна тестувати малою сумою.`;
-  } else if (best.test.total_executed < 20) {
-    verdictColor = 'yellow';
-    verdictTitle = 'Edge є, але мала вибірка на test';
-    verdictText = `Test PnL = ${fmtPnl(testPnl)}, WR ${(best.test.win_rate*100).toFixed(1)}%, але всього ${best.test.total_executed} трейдів. Статистично слабка певність. Збери більше даних перед запуском бота.`;
-  } else {
-    verdictColor = 'green';
-    verdictTitle = 'Робастний edge знайдено';
-    verdictText = `Стратегія працює на out-of-sample: test PnL ${fmtPnl(testPnl)}, WR ${(best.test.win_rate*100).toFixed(1)}% за ${best.test.total_executed} трейдів. Drop від train: ${pnlDropPct.toFixed(0)}% (норма 30-70%). Готова до бота з обережним розміром ставки.`;
-  }
-  
-  // Construct HTML
-  let html = '';
-  
-  // Verdict
-  const icon = verdictColor === 'green' ? 'EDGE FOUND' : (verdictColor === 'red' ? 'NO EDGE' : 'MARGINAL');
-  html += `
-    <div class="verdict verdict-${verdictColor}">
-      <div class="verdict-icon">${icon}</div>
-      <h2>${verdictTitle}</h2>
-      <p>${verdictText}</p>
+<div id="stab-results">
+  <div class="card">
+    <h2>Стабільність по днях</h2>
+    <div style="font-size:13px;color:#888;margin-bottom:12px" id="stab-info"></div>
+    <div style="overflow-x:auto">
+      <table class="daily-table">
+        <thead><tr><th>Дата</th><th>Трейдів</th><th>Wins</th><th>Losses</th><th>WR%</th><th>PnL</th><th>Avg entry</th><th>Streak</th></tr></thead>
+        <tbody id="stab-body"></tbody>
+      </table>
     </div>
-  `;
-  
-  // Best strategy detail
-  const p = best.params;
-  html += `
-    <div class="card">
-      <div class="card-title">Найкраща стратегія (out-of-sample sorted)</div>
-      <table class="table">
+  </div>
+  <div class="card">
+    <h2>Ризик-метрики</h2>
+    <div class="stats">
+      <div class="stat"><div class="stat-label">Max drawdown</div><div class="stat-value negative" id="r-dd">—</div></div>
+      <div class="stat"><div class="stat-label">Worst losing streak</div><div class="stat-value negative" id="r-ls">—</div></div>
+      <div class="stat"><div class="stat-label">Best winning streak</div><div class="stat-value positive" id="r-ws">—</div></div>
+      <div class="stat"><div class="stat-label">Days profitable</div><div class="stat-value neutral" id="r-dp">—</div></div>
+      <div class="stat"><div class="stat-label">WR std (по днях)</div><div class="stat-value neutral" id="r-std">—</div></div>
+    </div>
+  </div>
+</div>
+
+<div id="combo-results" style="display:none">
+  <div class="card">
+    <h2>📊 Combined backtest — як виглядали б всі стратегії разом</h2>
+    <div style="font-size:13px;color:#888;margin-bottom:12px" id="combo-info"></div>
+    <div class="combo-stats">
+      <div class="stat"><div class="stat-label">Трейдів</div><div class="stat-value neutral" id="c-trades">—</div></div>
+      <div class="stat"><div class="stat-label">Win rate</div><div class="stat-value neutral" id="c-wr">—</div></div>
+      <div class="stat"><div class="stat-label">Total PnL</div><div class="stat-value" id="c-pnl">—</div></div>
+      <div class="stat"><div class="stat-label">Avg PnL</div><div class="stat-value" id="c-avg">—</div></div>
+      <div class="stat"><div class="stat-label">Max drawdown</div><div class="stat-value negative" id="c-dd">—</div></div>
+      <div class="stat"><div class="stat-label">Worst losing streak</div><div class="stat-value negative" id="c-ls">—</div></div>
+      <div class="stat"><div class="stat-label">Days profitable</div><div class="stat-value neutral" id="c-dp">—</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Розбивка по стратегіях</h2>
+    <div id="combo-breakdown"></div>
+  </div>
+  <div class="card">
+    <h2>Стабільність по днях (комбіновано)</h2>
+    <div style="overflow-x:auto">
+      <table class="daily-table">
+        <thead><tr><th>Дата</th><th>Трейдів</th><th>Wins</th><th>Losses</th><th>WR%</th><th>PnL</th><th>Streak</th></tr></thead>
+        <tbody id="combo-daily-body"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Останні 50 трейдів (newest first)</h2>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>Час (UTC)</th><th>Стратегія</th><th>Сторона</th><th>Entry</th><th>Результат</th><th style="text-align:right">PnL</th></tr></thead>
+        <tbody id="combo-trades-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="kfopt-results" style="display:none">
+  <div class="card">
+    <h2 id="kfopt-title">🚀 K-fold Optimizer — топ робастних стратегій</h2>
+    <div style="font-size:13px;color:#888;margin-bottom:8px" id="kfopt-info"></div>
+    <div style="font-size:13px;margin-bottom:12px;padding:10px;background:#faf5ff;border-radius:6px;border-left:3px solid #7c3aed" id="kfopt-explanation"></div>
+    <div class="combo-stats">
+      <div class="stat"><div class="stat-label">Перевірено</div><div class="stat-value neutral" id="kfopt-tested">—</div></div>
+      <div class="stat"><div class="stat-label">Пройшли filter</div><div class="stat-value" id="kfopt-passed">—</div></div>
+      <div class="stat"><div class="stat-label">Robust (4/4)</div><div class="stat-value positive" id="kfopt-robust">—</div></div>
+      <div class="stat"><div class="stat-label">Найкращий score</div><div class="stat-value positive" id="kfopt-best-score">—</div></div>
+      <div class="stat"><div class="stat-label">Час виконання</div><div class="stat-value neutral" id="kfopt-time">—</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Топ-15 робастних стратегій (сортування по robustness score)</h2>
+    <div style="font-size:12px;color:#666;margin-bottom:8px">
+      <strong>Score components:</strong> Profit groups (25) + Min group WR (25) + Min group PnL (25) + WR stability (25) = 100 max.
+      Натисни <strong>"Use"</strong> щоб завантажити параметри в фільтри. Натисни <strong>"🔬"</strong> для детального аналізу зі sensitivity-тестом.
+    </div>
+    <div style="overflow-x:auto">
+      <table>
         <thead>
           <tr>
-            <th>Period</th>
-            <th>Windows</th>
+            <th>#</th>
+            <th>Score</th>
+            <th>Verdict</th>
+            <th>Delta</th>
+            <th>Entry</th>
+            <th>Time</th>
+            <th>Dir</th>
             <th>Trades</th>
-            <th>FOK fails</th>
             <th>WR%</th>
             <th>PnL</th>
-            <th>Max DD</th>
-            <th>PnL/DD</th>
+            <th>Min PnL</th>
+            <th>Test Tr.</th>
+            <th>Test WR</th>
+            <th>Test PnL</th>
+            <th>Дії</th>
           </tr>
         </thead>
-        <tbody>
-          <tr>
-            <td>Train</td>
-            <td>${train.length}</td>
-            <td>${best.train.total_executed} (${best.train.wins}W/${best.train.losses}L)</td>
-            <td class="num-dim">${best.train.fok_fails}</td>
-            <td>${fmtWR(best.train.win_rate, best.train.total_executed)}</td>
-            <td>${fmtPnl(best.train.pnl)}</td>
-            <td class="num-loss">-$${best.train.max_dd.toFixed(2)}</td>
-            <td>${best.train.pnl_dd_ratio.toFixed(2)}</td>
-          </tr>
-          <tr class="highlight">
-            <td>Test (out-of-sample)</td>
-            <td>${test.length}</td>
-            <td>${best.test.total_executed} (${best.test.wins}W/${best.test.losses}L)</td>
-            <td class="num-dim">${best.test.fok_fails}</td>
-            <td>${fmtWR(best.test.win_rate, best.test.total_executed)}</td>
-            <td>${fmtPnl(best.test.pnl)}</td>
-            <td class="num-loss">-$${best.test.max_dd.toFixed(2)}</td>
-            <td>${best.test.pnl_dd_ratio.toFixed(2)}</td>
-          </tr>
-        </tbody>
+        <tbody id="kfopt-body"></tbody>
       </table>
-      <div class="num-dim" style="margin-top:12px;font-size:12px;font-family:var(--mono);">
-        Train: ${fmtDate(train[0].window_ts)} → ${fmtDate(trainEndTs)} &nbsp;|&nbsp; 
-        Test: ${fmtDate(testStartTs)} → ${fmtDate(test[test.length-1].window_ts)}
-      </div>
     </div>
-  `;
-  
-  // Parameters block
-  html += `
-    <div class="card">
-      <div class="card-title">Параметри стратегії</div>
-      <div class="params-block"><span class="comment"># Bot v5.8 config for ${asset.toUpperCase()} ${timeframe}</span>
-<span class="key">"asset"</span>:           <span class="val">"${asset}"</span>,
-<span class="key">"timeframe"</span>:       <span class="val">"${timeframe}"</span>,
-<span class="key">"min_delta"</span>:       <span class="val">${p.min_delta}</span>,       <span class="comment"># % абсолютний рух за 1m</span>
-<span class="key">"entry_min"</span>:       <span class="val">${p.emin}</span>,         <span class="comment"># ¢ entry price min</span>
-<span class="key">"entry_max"</span>:       <span class="val">${p.emax}</span>,         <span class="comment"># ¢ entry price max</span>
-<span class="key">"monitor_from_sec"</span>: <span class="val">${p.tmin}</span>,         <span class="comment"># початок моніторингу (sec to close)</span>
-<span class="key">"monitor_to_sec"</span>:   <span class="val">${p.tmax}</span>,         <span class="comment"># кінець моніторингу</span>
-<span class="key">"stop_loss_mode"</span>:   <span class="val">"${bestSlMode}"</span>,  <span class="comment"># рекомендовано на основі train→test</span></div>
-      <button class="copy-btn" onclick="copyParams(this, ${JSON.stringify({asset, timeframe, ...p, stop_loss_mode: bestSlMode}).replace(/"/g, '&quot;')})">📋 Скопіювати JSON</button>
+  </div>
+  <div class="card" id="kfopt-detail-card" style="display:none">
+    <h2 id="kfopt-detail-title">🔬 Детальний аналіз стратегії</h2>
+    <div id="kfopt-detail-content"></div>
+  </div>
+  <div class="card" id="stoploss-test-card" style="display:none">
+    <h2>🛑 Stop-loss Test — порівняння 6 режимів</h2>
+    <div id="stoploss-test-content"></div>
+  </div>
+</div>
+
+<div id="kfold-results" style="display:none">
+  <div class="card">
+    <h2>🎯 K-fold validation — поточна стратегія на 4 групах</h2>
+    <div style="font-size:13px;color:#888;margin-bottom:8px" id="kfold-info"></div>
+    <div style="font-size:13px;margin-bottom:12px;padding:10px;background:#f5f3ff;border-radius:6px;border-left:3px solid #7c3aed">
+      <strong>Як це працює:</strong> весь період даних ділиться на 4 рівні групи у часі. Стратегія тестується окремо на кожній групі. 
+      <strong>Валідна стратегія — позитивний PnL на ВСІХ 4 групах.</strong> Якщо хоч одна група негативна — стратегія не робастна.
     </div>
-  `;
-  
-  // K-fold breakdown
-  const kf = best.kfold;
-  html += `
-    <div class="card">
-      <div class="card-title">K-fold breakdown на train (4 групи)</div>
-      <table class="table">
+    <div class="combo-stats">
+      <div class="stat"><div class="stat-label">Загальний WR</div><div class="stat-value neutral" id="kf-wr">—</div></div>
+      <div class="stat"><div class="stat-label">Загальний PnL</div><div class="stat-value" id="kf-pnl">—</div></div>
+      <div class="stat"><div class="stat-label">Profit груп</div><div class="stat-value neutral" id="kf-profit-groups">—</div></div>
+      <div class="stat"><div class="stat-label">Min WR групи</div><div class="stat-value" id="kf-min-wr">—</div></div>
+      <div class="stat"><div class="stat-label">Max WR групи</div><div class="stat-value" id="kf-max-wr">—</div></div>
+      <div class="stat"><div class="stat-label">Розмах WR</div><div class="stat-value neutral" id="kf-spread">—</div></div>
+      <div class="stat"><div class="stat-label">Verdict</div><div class="stat-value" id="kf-verdict">—</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Результати по групах</h2>
+    <div style="overflow-x:auto">
+      <table>
         <thead>
           <tr>
             <th>Група</th>
-            <th>Trades</th>
+            <th>Період</th>
+            <th>Днів</th>
+            <th>Трейдів</th>
             <th>WR%</th>
             <th>PnL</th>
+            <th>Avg entry</th>
             <th>Max DD</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${kf.groups.map((g, i) => `
-            <tr>
-              <td>Гр.${i+1}</td>
-              <td>${g.total_executed} (${g.wins}W/${g.losses}L)</td>
-              <td>${fmtWR(g.win_rate, g.total_executed)}</td>
-              <td>${fmtPnl(g.pnl)}</td>
-              <td class="num-loss">-$${g.max_dd.toFixed(2)}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-      <div class="num-dim" style="margin-top:12px;font-size:12px;font-family:var(--mono);">
-        4/4 груп прибуткові ✓ &nbsp;|&nbsp; Min PnL: ${fmtPnl(kf.min_group_pnl)} &nbsp;|&nbsp;
-        WR range: ${(kf.min_group_wr*100).toFixed(1)}% – ${(kf.max_group_wr*100).toFixed(1)}%
-      </div>
-    </div>
-  `;
-  
-  // Slippage stress on TEST
-  html += `
-    <div class="card">
-      <div class="card-title">Slippage stress на test set</div>
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Slippage</th>
-            <th>Trades</th>
-            <th>WR%</th>
-            <th>PnL</th>
-            <th>Δ vs 0%</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${[0, 0.005, 0.010, 0.020].map(slip => {
-            const s = slippageStress[slip];
-            const baseline = slippageStress[0].pnl;
-            const diff = s.pnl - baseline;
-            return `
-              <tr ${slip === 0.005 ? 'class="highlight"' : ''}>
-                <td>${slip === 0 ? '0¢ (ideal)' : (slip*1000).toFixed(0) + '‰' + (slip === 0.005 ? ' (baseline)' : '')}</td>
-                <td>${s.total_executed}</td>
-                <td>${fmtWR(s.win_rate, s.total_executed)}</td>
-                <td>${fmtPnl(s.pnl)}</td>
-                <td>${slip === 0 ? '<span class="num-dim">—</span>' : fmtPnl(diff)}</td>
-              </tr>
-            `;
-          }).join('')}
-        </tbody>
-      </table>
-      <div class="num-dim" style="margin-top:12px;font-size:12px;font-family:var(--mono);">
-        Якщо edge зникає при slippage 0.010 — стратегія надто тонка для практичної торгівлі.
-      </div>
-    </div>
-  `;
-  
-  // Stop-loss comparison train vs test
-  html += `
-    <div class="card">
-      <div class="card-title">Stop-loss test (обрано на train → валідовано на test)</div>
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Mode</th>
-            <th>Train PnL / DD</th>
-            <th>Test PnL / DD</th>
-            <th>Test PnL/DD ratio</th>
             <th>Verdict</th>
           </tr>
         </thead>
-        <tbody>
-          ${['pure', 'cooldown_2_loss', 'half_after_3_loss', 'daily_-10'].map(mode => {
-            const tr = slTrain[mode];
-            const te = slTest[mode];
-            const isBest = mode === bestSlMode;
-            const trainBetter = tr.pnl > 0;
-            const testHolds = te.pnl > 0;
-            let verd = '';
-            if (trainBetter && testHolds) verd = '<span class="num-win">holds</span>';
-            else if (trainBetter && !testHolds) verd = '<span class="num-loss">overfit</span>';
-            else verd = '<span class="num-dim">weak</span>';
-            return `
-              <tr ${isBest ? 'class="highlight"' : ''}>
-                <td>${mode}</td>
-                <td>${fmtPnl(tr.pnl)} / -$${tr.max_dd.toFixed(2)}</td>
-                <td>${fmtPnl(te.pnl)} / -$${te.max_dd.toFixed(2)}</td>
-                <td>${te.pnl_dd === Infinity ? '∞' : te.pnl_dd.toFixed(2)}</td>
-                <td>${verd}</td>
-              </tr>
-            `;
-          }).join('')}
-        </tbody>
+        <tbody id="kfold-groups-body"></tbody>
       </table>
-      <div class="num-dim" style="margin-top:12px;font-size:12px;font-family:var(--mono);">
-        ★ — вибрано як оптимальний (за PnL/DD ratio на train). Якщо на test "overfit" — використовуй "pure".
-      </div>
     </div>
-  `;
-  
-  // Realistic expectations
-  const daysInTest = (test[test.length-1].window_ts - test[0].window_ts) / 86400;
-  const dailyPnlEst = testPnl / daysInTest;
-  const dailyTradesEst = best.test.total_executed / daysInTest;
-  
-  html += `
-    <div class="card">
-      <div class="card-title">Реалістичні очікування для bot v5.8</div>
-      <div class="stats-grid">
-        <div class="stat-cell">
-          <div class="stat-label">Trades/день</div>
-          <div class="stat-value">${dailyTradesEst.toFixed(1)}</div>
-        </div>
-        <div class="stat-cell">
-          <div class="stat-label">Очікуваний WR</div>
-          <div class="stat-value">${(best.test.win_rate*100).toFixed(0)}%</div>
-        </div>
-        <div class="stat-cell">
-          <div class="stat-label">PnL/день ($${betSize} bet)</div>
-          <div class="stat-value ${dailyPnlEst >= 0 ? 'num-win' : 'num-loss'}">${dailyPnlEst >= 0 ? '+' : ''}$${dailyPnlEst.toFixed(2)}</div>
-        </div>
-        <div class="stat-cell">
-          <div class="stat-label">Test days</div>
-          <div class="stat-value num-dim">${daysInTest.toFixed(1)}</div>
-        </div>
-      </div>
-      <div class="num-dim" style="margin-top:16px;font-size:12px;font-family:var(--mono);line-height:1.7;">
-        Реальна торгівля може показати <strong>20-30% гірші</strong> результати ніж test set через:
-        додаткові FOK fails, network latency, ринкові режими що відрізняються, exchange rate ефекти на pUSD.
-        Розпочинай з малої ставки і перевіряй чи WR за перший день у межах ${((best.test.win_rate*100)-7).toFixed(0)}%-${(best.test.win_rate*100).toFixed(0)}%.
-      </div>
+  </div>
+  <div class="card">
+    <h2>Інтерпретація результату</h2>
+    <div id="kfold-interpretation" style="font-size:14px;line-height:1.6"></div>
+  </div>
+</div>
+
+<div id="results">
+  <div class="card">
+    <div class="stats">
+      <div class="stat"><div class="stat-label">Трейдів</div><div class="stat-value neutral" id="s-trades">—</div></div>
+      <div class="stat"><div class="stat-label">Win rate</div><div class="stat-value neutral" id="s-wr">—</div></div>
+      <div class="stat"><div class="stat-label">Total PnL</div><div class="stat-value" id="s-pnl">—</div></div>
+      <div class="stat"><div class="stat-label">Avg PnL</div><div class="stat-value" id="s-avg">—</div></div>
+      <div class="stat"><div class="stat-label">Avg entry</div><div class="stat-value neutral" id="s-entry">—</div></div>
+      <div class="stat"><div class="stat-label">EV/dollar</div><div class="stat-value" id="s-ev">—</div></div>
     </div>
-  `;
-  
-  // Alternative robust strategies (top-5)
-  if (robust.length > 1) {
-    html += `
-      <div class="card">
-        <div class="card-title">Альтернативні робастні стратегії (top-5 за test PnL)</div>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Delta</th>
-              <th>Entry</th>
-              <th>Monitor</th>
-              <th>Test Tr.</th>
-              <th>Test WR%</th>
-              <th>Test PnL</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${robust.slice(0, 5).map((r, i) => `
-              <tr ${i === 0 ? 'class="highlight"' : ''}>
-                <td>${i+1}</td>
-                <td>≥${r.params.min_delta}%</td>
-                <td>${r.params.emin}-${r.params.emax}</td>
-                <td>T-${r.params.tmin} → T-${r.params.tmax}s</td>
-                <td>${r.test.total_executed}</td>
-                <td>${fmtWR(r.test.win_rate, r.test.total_executed)}</td>
-                <td>${fmtPnl(r.test.pnl)}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-        <div class="num-dim" style="margin-top:12px;font-size:12px;font-family:var(--mono);">
-          ${robust.length} стратегій пройшли k-fold + позитивний test PnL.
-        </div>
-      </div>
-    `;
+  </div>
+  <div class="card" style="overflow-x:auto">
+    <table>
+      <thead><tr><th>Час (UTC)</th><th>Сторона</th><th>Entry</th><th>Результат</th><th style="text-align:right">PnL</th></tr></thead>
+      <tbody id="trades-body"></tbody>
+    </table>
+  </div>
+</div>
+</div>
+
+<script>
+const SB_URL = 'https://nteqbaiuindiumdnkbsc.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZXFiYWl1aW5kaXVtZG5rYnNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3MjI5NTUsImV4cCI6MjA5MTI5ODk1NX0.dsavxNCSZhJTvd1pa--W9D_myB1esbiaah-umGeWmXU';
+
+let cache = null, cacheKey = null;
+function clearCache() { cache = null; cacheKey = null; }
+
+// ========== Saved strategies (localStorage) ==========
+const SAVED_KEY = 'pm_saved_strategies_v1';
+
+function getSavedStrategies() {
+  try {
+    const raw = localStorage.getItem(SAVED_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function setSavedStrategies(arr) {
+  localStorage.setItem(SAVED_KEY, JSON.stringify(arr));
+  renderSavedList();
+}
+
+function getCurrentParams() {
+  return {
+    asset: document.getElementById('asset').value,
+    timeframe: document.getElementById('timeframe').value,
+    direction: document.getElementById('direction').value,
+    emin: +document.getElementById('emin').value,
+    emax: +document.getElementById('emax').value,
+    tmin: +document.getElementById('tmin').value,
+    tmax: +document.getElementById('tmax').value,
+    minDelta: +document.getElementById('delta').value,
+    pos: +document.getElementById('pos').value,
+  };
+}
+
+function strategyLabel(s) {
+  return `${s.asset.toUpperCase()} ${s.timeframe} d≥${s.minDelta.toFixed(2)}% ${s.tmin}-${s.tmax}s ${s.emin.toFixed(2)}-${s.emax.toFixed(2)}`;
+}
+
+function saveCurrentStrategy() {
+  const params = getCurrentParams();
+  const defaultName = `${params.asset.toUpperCase()} ${params.timeframe}`;
+  const name = prompt('Назва стратегії:', defaultName);
+  if (!name) return;
+  const all = getSavedStrategies();
+  // Replace if same name
+  const idx = all.findIndex(s => s.name === name);
+  const entry = { name, ...params, savedAt: new Date().toISOString() };
+  if (idx >= 0) all[idx] = entry; else all.push(entry);
+  setSavedStrategies(all);
+}
+
+function removeStrategy(name) {
+  const all = getSavedStrategies().filter(s => s.name !== name);
+  setSavedStrategies(all);
+}
+
+function applyStrategy(name) {
+  const s = getSavedStrategies().find(x => x.name === name);
+  if (!s) return;
+  document.getElementById('asset').value = s.asset;
+  document.getElementById('timeframe').value = s.timeframe;
+  document.getElementById('direction').value = s.direction;
+  document.getElementById('emin').value = s.emin;
+  document.getElementById('emin-v').textContent = s.emin;
+  document.getElementById('emax').value = s.emax;
+  document.getElementById('emax-v').textContent = s.emax;
+  document.getElementById('tmin').value = s.tmin;
+  document.getElementById('tmin-v').textContent = s.tmin + 's';
+  document.getElementById('tmax').value = s.tmax;
+  document.getElementById('tmax-v').textContent = s.tmax + 's';
+  document.getElementById('delta').value = s.minDelta;
+  document.getElementById('delta-v').textContent = s.minDelta.toFixed(2);
+  document.getElementById('pos').value = s.pos;
+  document.getElementById('pos-v').textContent = '$' + s.pos;
+  onTfChange();
+  clearCache();
+}
+
+function renderSavedList() {
+  const list = getSavedStrategies();
+  const el = document.getElementById('saved-list');
+  if (!list.length) {
+    el.innerHTML = '<div style="font-size:12px;color:#888;padding:4px 0">Поки немає збережених стратегій. Налаштуй параметри і натисни "Зберегти поточну".</div>';
+    return;
   }
-  
-  // Methodology note
-  html += `
-    <div class="card">
-      <div class="card-title">Методологія</div>
-      <div style="color:var(--text-dim);font-size:13px;line-height:1.7;">
-        <strong style="color:var(--text);">Trigger-based simulation:</strong> для кожного 5/15-хв вікна бот моніторить snapshots в [tmin, tmax] хронологічно і входить у ПЕРШИЙ де всі умови (delta, entry price, liquidity) виконуються. No look-ahead.<br><br>
-        <strong style="color:var(--text);">Direction:</strong> визначається за delta_pct в момент snapshot (бот ставить за рухом).<br><br>
-        <strong style="color:var(--text);">Walk-forward split:</strong> train (перші 70% днів) для оптимізації параметрів, test (останні 30% днів) — бот ніколи їх не бачив під час пошуку, це справжня out-of-sample валідація.<br><br>
-        <strong style="color:var(--text);">K-fold на train:</strong> train розбивається на 4 рівні групи по часу. Стратегія "робастна" якщо прибуткова на КОЖНІЙ з 4 груп — фільтрує overfit на специфічні дні.<br><br>
-        <strong style="color:var(--text);">Slippage:</strong> до entry price додається slippage (default 0.005¢) — це реалістична модель Polymarket execution.<br><br>
-        <strong style="color:var(--text);">FOK fail rate:</strong> 10% трейдів випадково помічаються як неуспішні (deterministic per-window) — реалістична оцінка з історії v3.2.<br><br>
-        <strong style="color:var(--text);">Stop-loss:</strong> кожен режим обирається на train, потім симулюється на test. Якщо edge зникає на test — overfit.
-      </div>
+  el.innerHTML = '';
+  list.forEach(s => {
+    const chip = document.createElement('div');
+    chip.className = 'saved-chip';
+    chip.innerHTML = `
+      <span class="saved-chip-name" style="cursor:pointer" onclick="applyStrategy('${s.name.replace(/'/g, "\\'")}')">${s.name}</span>
+      <span class="saved-chip-params">${strategyLabel(s)} • $${s.pos}</span>
+      <button class="saved-chip-remove" onclick="if(confirm('Видалити \\'${s.name.replace(/'/g, "\\'")}\\'?')) removeStrategy('${s.name.replace(/'/g, "\\'")}')">×</button>
+    `;
+    el.appendChild(chip);
+  });
+}
+
+// Render on load
+window.addEventListener('DOMContentLoaded', renderSavedList);
+// ====================================================
+
+[['emin','emin-v',v=>v],['emax','emax-v',v=>v],['tmin','tmin-v',v=>v+'s'],
+ ['tmax','tmax-v',v=>v+'s'],['delta','delta-v',v=>parseFloat(v).toFixed(2)],
+ ['pos','pos-v',v=>'$'+v]].forEach(([id,out,fmt])=>{
+  document.getElementById(id).addEventListener('input',e=>{
+    document.getElementById(out).textContent=fmt(e.target.value);
+  });
+});
+
+document.getElementById('train-pct').addEventListener('input',e=>{
+  const v=+e.target.value;
+  document.getElementById('train-v').textContent=v;
+  document.getElementById('test-v').textContent=100-v;
+});
+
+function onTfChange() {
+  const is15=document.getElementById('timeframe').value==='15m';
+  const tmin=document.getElementById('tmin'), tmax=document.getElementById('tmax');
+  if(is15){ tmin.max=840;tmin.step=60;tmax.max=900;tmax.step=60;
+    if(+tmin.value>840)tmin.value=300; if(+tmax.value<300)tmax.value=900;
+  } else { tmin.max=280;tmin.step=20;tmax.max=300;tmax.step=20;
+    if(+tmin.value>280)tmin.value=160; if(+tmax.value>300)tmax.value=300;
+  }
+  document.getElementById('tmin-v').textContent=tmin.value+'s';
+  document.getElementById('tmax-v').textContent=tmax.value+'s';
+}
+
+async function fetchRows(asset,tf) {
+  const k=asset+'_'+tf;
+  if(cacheKey===k&&cache) return cache;
+  const rows=[];let offset=0;
+  while(true){
+    const r=await fetch(`${SB_URL}/rest/v1/market_snapshots?select=window_ts,seconds_to_close,up_ask,down_ask,delta_pct,predicted_direction,final_direction&asset=eq.${asset}&timeframe=eq.${tf}&final_direction=not.is.null&order=window_ts.desc`,{
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Range':`${offset}-${offset+999}`,'Range-Unit':'items','Prefer':'count=none'}
+    });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const b=await r.json(); if(!b.length) break;
+    rows.push(...b); setL(`Завантажено ${rows.length}...`);
+    if(b.length<1000) break; offset+=1000; if(offset>300000) break;
+  }
+  cache=rows; cacheKey=k; return rows;
+}
+
+function buildRegimeMap(rows){
+  const wmap=new Map();
+  for(const r of rows){
+    const wts=r.window_ts;
+    if(!wmap.has(wts)) wmap.set(wts,[]);
+    wmap.get(wts).push(+r.delta_pct||0);
+  }
+  const sorted=[...wmap.entries()].sort((a,b)=>a[0]-b[0]);
+  const rm=new Map();
+  for(let i=0;i<sorted.length;i++){
+    const [wts]=sorted[i];
+    const start=Math.max(0,i-48);
+    let sum=0,cnt=0;
+    for(let j=start;j<i;j++){
+      const d=sorted[j][1];
+      sum+=d.reduce((a,b)=>a+b,0)/d.length; cnt++;
+    }
+    const avg=cnt>0?sum/cnt:0;
+    let regime;
+    if(avg>0.03) regime='strong_bull';
+    else if(avg>0.01) regime='weak_bull';
+    else if(avg<-0.03) regime='strong_bear';
+    else if(avg<-0.01) regime='weak_bear';
+    else regime='chop';
+    rm.set(wts,{regime,avg});
+  }
+  return rm;
+}
+
+function getAllowedSides(regime){
+  if(regime==='strong_bull') return ['up'];
+  if(regime==='weak_bull')   return ['up','down'];
+  if(regime==='strong_bear') return ['down'];
+  if(regime==='weak_bear')   return ['up'];
+  return [];
+}
+
+function process(rows,{emin,emax,tmin,tmax,minDelta,direction,limit,useRegime,regimeMap}){
+  const map=new Map();
+  for(const r of rows){
+    const stc=+r.seconds_to_close||0,upA=+r.up_ask||0,downA=+r.down_ask||0;
+    const delta=Math.abs(+r.delta_pct||0);
+    if(stc<tmin||stc>tmax||delta<minDelta||!r.final_direction) continue;
+    let side=null,price=null;
+    const pred=r.predicted_direction;
+    if(direction==='up_only'){ if(upA>=emin&&upA<=emax){side='up';price=upA;} }
+    else if(direction==='down_only'){ if(downA>=emin&&downA<=emax){side='down';price=downA;} }
+    else if(direction==='follow'){
+      if(pred==='up'&&upA>=emin&&upA<=emax){side='up';price=upA;}
+      else if(pred==='down'&&downA>=emin&&downA<=emax){side='down';price=downA;}
+    } else if(direction==='contrarian'){
+      if(pred==='down'&&upA>=emin&&upA<=emax){side='up';price=upA;}
+      else if(pred==='up'&&downA>=emin&&downA<=emax){side='down';price=downA;}
+    } else {
+      const uok=upA>=emin&&upA<=emax,dok=downA>=emin&&downA<=emax;
+      if(uok&&dok){side=upA<=downA?'up':'down';price=side==='up'?upA:downA;}
+      else if(uok){side='up';price=upA;} else if(dok){side='down';price=downA;}
+    }
+    if(!side||!price) continue;
+    if(useRegime&&regimeMap){
+      const rm=regimeMap.get(r.window_ts);
+      if(!rm||rm.regime==='chop') continue;
+      const allowed=getAllowedSides(rm.regime);
+      if(!allowed.includes(side)) continue;
+    }
+    const ex=map.get(r.window_ts);
+    if(!ex||stc>ex.stc) map.set(r.window_ts,{wts:r.window_ts,stc,side,price,final:r.final_direction});
+  }
+  return [...map.values()].sort((a,b)=>b.wts-a.wts).slice(0,limit);
+}
+
+function stats(trades,pos){
+  if(!trades.length) return null;
+  let wins=0,pnl=0;
+  trades.forEach(t=>{const w=t.side===t.final;if(w)wins++;pnl+=w?pos*(1/t.price-1):-pos;});
+  const n=trades.length,wr=wins/n,ae=trades.reduce((s,t)=>s+t.price,0)/n;
+  return {n,wins,wr,pnl,avgPnl:pnl/n,ae,ev:wr*(1/ae-1)-(1-wr)};
+}
+
+// Split rows into train/test by window_ts (time-based, not random)
+function splitRowsByTime(rows, trainPct) {
+  if (!rows.length) return { train: [], test: [], splitWts: null, splitDate: null };
+  const wtsSet = new Set(rows.map(r => r.window_ts));
+  const sortedWts = [...wtsSet].sort((a,b) => a-b);
+  if (sortedWts.length < 10) return { train: rows, test: [], splitWts: null, splitDate: null };
+  const splitIdx = Math.floor(sortedWts.length * trainPct);
+  const splitWts = sortedWts[splitIdx];
+  return {
+    train: rows.filter(r => r.window_ts < splitWts),
+    test: rows.filter(r => r.window_ts >= splitWts),
+    splitWts,
+    splitDate: new Date(splitWts * 1000)
+  };
+}
+
+// Compute risk metrics: drawdown, streaks, daily stability
+function riskMetrics(trades, pos) {
+  if (!trades.length) return null;
+  const sorted = [...trades].sort((a,b)=>a.wts-b.wts);
+
+  // Equity curve and drawdown
+  let eq = 0, peak = 0, maxDD = 0;
+  let ws = 0, ls = 0, bestWS = 0, worstLS = 0;
+  for (const t of sorted) {
+    const win = t.side === t.final;
+    eq += win ? pos*(1/t.price-1) : -pos;
+    if (eq > peak) peak = eq;
+    const dd = peak - eq;
+    if (dd > maxDD) maxDD = dd;
+    if (win) { ws++; ls=0; if (ws>bestWS) bestWS=ws; }
+    else { ls++; ws=0; if (ls>worstLS) worstLS=ls; }
+  }
+
+  // Daily breakdown
+  const daily = new Map();
+  for (const t of sorted) {
+    const dt = new Date(t.wts*1000);
+    const day = dt.toISOString().slice(0,10);
+    if (!daily.has(day)) daily.set(day,{n:0,wins:0,losses:0,pnl:0,entrySum:0});
+    const d = daily.get(day);
+    d.n++;
+    const win = t.side === t.final;
+    if (win) d.wins++; else d.losses++;
+    d.pnl += win ? pos*(1/t.price-1) : -pos;
+    d.entrySum += t.price;
+  }
+  const days = [...daily.entries()].map(([day,d])=>({day,...d,wr:d.wins/d.n,avgEntry:d.entrySum/d.n})).sort((a,b)=>a.day.localeCompare(b.day));
+  const daysProfitable = days.filter(d=>d.pnl>0).length;
+  const wrs = days.map(d=>d.wr);
+  const meanWr = wrs.reduce((a,b)=>a+b,0)/wrs.length;
+  const stdWr = Math.sqrt(wrs.reduce((s,w)=>s+(w-meanWr)**2,0)/wrs.length);
+
+  return { maxDD, worstLS, bestWS, days, daysProfitable, stdWr };
+}
+
+function setBtn(dis){['run-btn','opt-btn','stab-btn','combo-btn','kfold-btn','kfopt-quick-btn','kfopt-strict-btn'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=dis;});}
+function setL(m){document.getElementById('loading').textContent=m;}
+function showErr(m){setBtn(false);document.getElementById('loading').style.display='none';const e=document.getElementById('error-msg');e.textContent=m;e.style.display='block';}
+function showInfo(m){const e=document.getElementById('info-msg');e.textContent=m;e.style.display='block';}
+function setCol(id,txt,pos){const e=document.getElementById(id);e.textContent=txt;e.className='stat-value '+(pos?'positive':'negative');}
+function hideAllResults(){
+  document.getElementById('results').style.display='none';
+  document.getElementById('opt-results').style.display='none';
+  document.getElementById('stab-results').style.display='none';
+  document.getElementById('combo-results').style.display='none';
+  document.getElementById('kfold-results').style.display='none';
+  document.getElementById('kfopt-results').style.display='none';
+  document.getElementById('error-msg').style.display='none';
+  document.getElementById('info-msg').style.display='none';
+}
+
+async function runAnalysis(){
+  const asset=document.getElementById('asset').value,tf=document.getElementById('timeframe').value;
+  const limit=+document.getElementById('limit').value,dir=document.getElementById('direction').value;
+  const emin=+document.getElementById('emin').value,emax=+document.getElementById('emax').value;
+  const tmin=+document.getElementById('tmin').value,tmax=+document.getElementById('tmax').value;
+  const minDelta=+document.getElementById('delta').value,pos=+document.getElementById('pos').value;
+  const useRegime=document.getElementById('regime-filter').checked;
+  if(emin>=emax){showErr('Мін. ціна має бути менша за макс.');return;}
+  hideAllResults();
+  document.getElementById('loading').style.display='block';
+  setBtn(true); setL('Завантаження...');
+  try{
+    const rows=await fetchRows(asset,tf);
+    setL(`Обробка ${rows.length} рядків...`);
+    const regimeMap=useRegime?buildRegimeMap(rows):null;
+    const trades=process(rows,{emin,emax,tmin,tmax,minDelta,direction:dir,limit,useRegime,regimeMap});
+    if(!trades.length){showErr('Нічого не знайдено. Розшир параметри.');return;}
+    const s=stats(trades,pos);
+    document.getElementById('s-trades').textContent=s.n;
+    document.getElementById('s-wr').textContent=(s.wr*100).toFixed(1)+'%';
+    setCol('s-pnl',(s.pnl>=0?'+':'')+'$'+s.pnl.toFixed(2),s.pnl>=0);
+    setCol('s-avg',(s.avgPnl>=0?'+':'')+'$'+s.avgPnl.toFixed(2),s.avgPnl>=0);
+    document.getElementById('s-entry').textContent=s.ae.toFixed(4);
+    setCol('s-ev',(s.ev>=0?'+':'')+s.ev.toFixed(4),s.ev>=0);
+    if(s.n<limit) showInfo(`Знайдено ${s.n} трейдів з ${rows.length} рядків. Всі вікна враховано.`);
+    const tbody=document.getElementById('trades-body');tbody.innerHTML='';
+    trades.forEach(t=>{
+      const w=t.side===t.final,pnl=w?pos*(1/t.price-1):-pos;
+      const dt=new Date(t.wts*1000),ts=dt.toISOString().slice(5,16).replace('T',' ');
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td style="color:#888">${ts}</td><td><span class="badge badge-${t.side}">${t.side.toUpperCase()}</span></td><td>${t.price.toFixed(3)}</td><td><span class="badge badge-${w?'win':'loss'}">${w?'WIN':'LOSS'}</span></td><td style="text-align:right;font-weight:500;color:${pnl>=0?'#22c55e':'#ef4444'}">${pnl>=0?'+':''}$${pnl.toFixed(2)}</td>`;
+      tbody.appendChild(tr);
+    });
+    document.getElementById('loading').style.display='none';
+    document.getElementById('results').style.display='block';
+  }catch(e){showErr('Помилка: '+e.message);}
+  setBtn(false);
+}
+
+async function runOptimize(){
+  const asset=document.getElementById('asset').value,tf=document.getElementById('timeframe').value;
+  const limit=+document.getElementById('limit').value,dir=document.getElementById('direction').value;
+  const emin=+document.getElementById('emin').value,emax=+document.getElementById('emax').value;
+  const pos=+document.getElementById('pos').value,is15=tf==='15m';
+  const useRegime=document.getElementById('regime-filter').checked;
+  const useWF=document.getElementById('walkforward').checked;
+  const trainPct=+document.getElementById('train-pct').value/100;
+
+  hideAllResults();
+  document.getElementById('loading').style.display='block';
+  setBtn(true); setL('Завантаження...');
+  try{
+    const rows=await fetchRows(asset,tf);
+
+    // Build regime map ONCE on full data (regime is a real-time signal, ok to use)
+    const regimeMap = useRegime ? buildRegimeMap(rows) : null;
+
+    // Split if walk-forward enabled
+    let trainRows, testRows, splitDate=null;
+    if (useWF) {
+      const split = splitRowsByTime(rows, trainPct);
+      if (!split.test.length) {
+        showErr('Замало даних для walk-forward. Збільш ліміт або вимкни walk-forward.');
+        return;
+      }
+      trainRows = split.train;
+      testRows = split.test;
+      splitDate = split.splitDate;
+      setL(`Train: ${trainRows.length} рядків до ${splitDate.toISOString().slice(0,16).replace('T',' ')} UTC | Test: ${testRows.length} рядків після`);
+    } else {
+      trainRows = rows;
+      testRows = null;
+    }
+
+    const deltas=[]; for(let d=0;d<=0.10;d+=0.01) deltas.push(Math.round(d*100)/100);
+    const maxT=is15?900:300,step=is15?60:20;
+    const froms=[],tos=[];
+    for(let t=0;t<maxT;t+=step) froms.push(t);
+    for(let t=step;t<=maxT;t+=step) tos.push(t);
+    const combos=[];
+    for(const d of deltas) for(const f of froms) for(const t of tos) if(t>f) combos.push({d,f,t});
+
+    const results=[]; let done=0;
+    for(const {d,f,t} of combos){
+      const trainTrades=process(trainRows,{emin,emax,tmin:f,tmax:t,minDelta:d,direction:dir,limit:999999,useRegime,regimeMap});
+      if(trainTrades.length>=15){
+        const sTrain=stats(trainTrades,pos);
+        if(sTrain.ev>0 && sTrain.pnl>0) {
+          const r = {delta:d,tFrom:f,tTo:t,train:sTrain};
+          if (testRows) {
+            const testTrades=process(testRows,{emin,emax,tmin:f,tmax:t,minDelta:d,direction:dir,limit:999999,useRegime,regimeMap});
+            r.test = testTrades.length >= 5 ? stats(testTrades,pos) : null;
+          }
+          results.push(r);
+        }
+      }
+      done++;
+      if(done%200===0){setL(`Оптимізація... ${Math.round(done/combos.length*100)}% (${results.length} знайдено)`);await new Promise(r=>setTimeout(r,0));}
+    }
+
+    // Sort by test PnL if walk-forward, else train PnL
+    if (useWF) {
+      // Only keep strategies that ALSO work on test
+      results.sort((a,b) => {
+        const ap = a.test ? a.test.pnl : -Infinity;
+        const bp = b.test ? b.test.pnl : -Infinity;
+        return bp - ap;
+      });
+    } else {
+      results.sort((a,b)=>b.train.pnl-a.train.pnl);
+    }
+    const top=results.slice(0,20);
+
+    const wfNote = useWF ? ` | Split: ${splitDate.toISOString().slice(0,10)} | Сортовано по TEST PnL` : '';
+    document.getElementById('opt-info').textContent=`Перебрано ${combos.length} комбінацій | Знайдено ${results.length} прибуткових на train${wfNote}`;
+
+    // Build header
+    const head = document.getElementById('opt-head');
+    if (useWF) {
+      head.innerHTML = `<th>#</th><th>Delta</th><th>Від</th><th>До</th>
+        <th class="div-col" style="background:#dbeafe">Train N</th><th style="background:#dbeafe">Train WR</th><th style="background:#dbeafe">Train PnL</th>
+        <th class="div-col" style="background:#fed7aa">Test N</th><th style="background:#fed7aa">Test WR</th><th style="background:#fed7aa">Test PnL</th>
+        <th class="div-col">Verdict</th>`;
+    } else {
+      head.innerHTML = `<th>#</th><th>Delta</th><th>Від</th><th>До</th><th>Трейдів</th><th>WR%</th><th>PnL</th><th>EV</th><th>Avg entry</th>`;
+    }
+
+    const tbody=document.getElementById('opt-body');tbody.innerHTML='';
+    if(!top.length){
+      tbody.innerHTML=`<tr><td colspan="${useWF?11:9}" style="text-align:center;color:#888;padding:20px">Нічого не знайдено. Спробуй інші параметри.</td></tr>`;
+    } else {
+      top.forEach((r,i)=>{
+        const tr=document.createElement('tr');
+        if(i===0) tr.className='opt-best';
+
+        if (useWF) {
+          const tr_ = r.train, te = r.test;
+          let verdict, vClass;
+          if (!te || te.n < 5) { verdict = '⚠️ замало test'; vClass = 'badge-warn'; }
+          else if (te.pnl <= 0) { verdict = '❌ overfit'; vClass = 'badge-bad'; }
+          else if (te.wr < tr_.wr - 0.07) { verdict = '⚠️ WR падає'; vClass = 'badge-warn'; }
+          else if (te.pnl > 0 && te.wr >= tr_.wr - 0.03) { verdict = '✅ стабільна'; vClass = 'badge-good'; }
+          else { verdict = '🟡 ок'; vClass = 'badge-warn'; }
+
+          tr.innerHTML=`<td>${i+1}</td><td>${r.delta.toFixed(2)}%</td><td>${r.tFrom}s</td><td>${r.tTo}s</td>
+            <td class="div-col">${tr_.n}</td><td>${(tr_.wr*100).toFixed(1)}%</td><td style="color:#22c55e;font-weight:500">+$${tr_.pnl.toFixed(2)}</td>
+            <td class="div-col">${te?te.n:'-'}</td><td>${te?(te.wr*100).toFixed(1)+'%':'-'}</td>
+            <td style="color:${te&&te.pnl>=0?'#22c55e':'#ef4444'};font-weight:500">${te?(te.pnl>=0?'+':'')+'$'+te.pnl.toFixed(2):'-'}</td>
+            <td class="div-col"><span class="badge ${vClass}">${verdict}</span></td>`;
+        } else {
+          const s = r.train;
+          tr.innerHTML=`<td>${i+1}</td><td>${r.delta.toFixed(2)}%</td><td>${r.tFrom}s</td><td>${r.tTo}s</td><td>${s.n}</td><td style="font-weight:500">${(s.wr*100).toFixed(1)}%</td><td style="color:#22c55e;font-weight:500">+$${s.pnl.toFixed(2)}</td><td style="color:#22c55e">+${s.ev.toFixed(4)}</td><td>${s.ae.toFixed(4)}</td>`;
+        }
+
+        tr.onclick=()=>{
+          document.getElementById('delta').value=r.delta;document.getElementById('delta-v').textContent=r.delta.toFixed(2);
+          document.getElementById('tmin').value=r.tFrom;document.getElementById('tmin-v').textContent=r.tFrom+'s';
+          document.getElementById('tmax').value=r.tTo;document.getElementById('tmax-v').textContent=r.tTo+'s';
+          document.getElementById('opt-results').style.display='none';
+          runAnalysis();
+        };
+        tbody.appendChild(tr);
+      });
+    }
+    document.getElementById('loading').style.display='none';
+    document.getElementById('opt-results').style.display='block';
+  }catch(e){showErr('Помилка: '+e.message);console.error(e);}
+  setBtn(false);
+}
+
+async function runStability(){
+  const asset=document.getElementById('asset').value,tf=document.getElementById('timeframe').value;
+  const limit=999999,dir=document.getElementById('direction').value;
+  const emin=+document.getElementById('emin').value,emax=+document.getElementById('emax').value;
+  const tmin=+document.getElementById('tmin').value,tmax=+document.getElementById('tmax').value;
+  const minDelta=+document.getElementById('delta').value,pos=+document.getElementById('pos').value;
+  const useRegime=document.getElementById('regime-filter').checked;
+  hideAllResults();
+  document.getElementById('loading').style.display='block';
+  setBtn(true); setL('Завантаження...');
+  try{
+    const rows=await fetchRows(asset,tf);
+    setL(`Обробка ${rows.length} рядків...`);
+    const regimeMap=useRegime?buildRegimeMap(rows):null;
+    const trades=process(rows,{emin,emax,tmin,tmax,minDelta,direction:dir,limit,useRegime,regimeMap});
+    if(!trades.length){showErr('Нічого не знайдено. Розшир параметри.');return;}
+    const rm = riskMetrics(trades,pos);
+    const s = stats(trades,pos);
+
+    document.getElementById('stab-info').textContent =
+      `${trades.length} трейдів | загальний WR ${(s.wr*100).toFixed(1)}% | PnL ${s.pnl>=0?'+':''}$${s.pnl.toFixed(2)} | ставка $${pos}`;
+
+    document.getElementById('r-dd').textContent = '-$'+rm.maxDD.toFixed(2);
+    document.getElementById('r-ls').textContent = rm.worstLS;
+    document.getElementById('r-ws').textContent = rm.bestWS;
+    document.getElementById('r-dp').textContent = `${rm.daysProfitable}/${rm.days.length}`;
+    document.getElementById('r-std').textContent = (rm.stdWr*100).toFixed(1)+'%';
+
+    const tbody=document.getElementById('stab-body');tbody.innerHTML='';
+    rm.days.forEach(d=>{
+      const tr=document.createElement('tr');
+      const wrColor = d.wr>=0.7?'#22c55e':d.wr>=0.5?'#b45309':'#ef4444';
+      const pnlColor = d.pnl>=0?'#22c55e':'#ef4444';
+      tr.innerHTML=`<td>${d.day}</td><td>${d.n}</td><td style="color:#22c55e">${d.wins}</td><td style="color:#ef4444">${d.losses}</td>
+        <td style="font-weight:500;color:${wrColor}">${(d.wr*100).toFixed(1)}%</td>
+        <td style="font-weight:500;color:${pnlColor}">${d.pnl>=0?'+':''}$${d.pnl.toFixed(2)}</td>
+        <td>${d.avgEntry.toFixed(3)}</td>
+        <td><span class="badge ${d.wr>=0.7?'badge-good':d.wr>=0.5?'badge-warn':'badge-bad'}">${(d.wr*100).toFixed(0)}%</span></td>`;
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById('loading').style.display='none';
+    document.getElementById('stab-results').style.display='block';
+  }catch(e){showErr('Помилка: '+e.message);console.error(e);}
+  setBtn(false);
+}
+
+// ========== Combined Backtest ==========
+async function runComboBacktest() {
+  const saved = getSavedStrategies();
+  if (!saved.length) {
+    showErr('Спочатку збережи хоча б одну стратегію (натисни "Зберегти поточну" з налаштованими параметрами).');
+    return;
+  }
+
+  hideAllResults();
+  document.getElementById('loading').style.display='block';
+  setBtn(true);
+
+  try {
+    // Run each strategy and collect all trades
+    const allTrades = [];  // {wts, side, price, final, pnl, stratName, asset, timeframe, pos}
+    const breakdown = []; // per strategy stats
+
+    for (let i = 0; i < saved.length; i++) {
+      const s = saved[i];
+      setL(`(${i+1}/${saved.length}) ${s.name}: завантажую ${s.asset.toUpperCase()} ${s.timeframe}...`);
+      const rows = await fetchRows(s.asset, s.timeframe);
+      setL(`(${i+1}/${saved.length}) ${s.name}: обробка ${rows.length} рядків...`);
+
+      const trades = process(rows, {
+        emin: s.emin, emax: s.emax,
+        tmin: s.tmin, tmax: s.tmax,
+        minDelta: s.minDelta,
+        direction: s.direction,
+        limit: 999999,
+        useRegime: false,
+        regimeMap: null,
+      });
+
+      // Compute trade-level PnL using strategy's pos size
+      let wins = 0, pnl = 0;
+      trades.forEach(t => {
+        const won = t.side === t.final;
+        const tPnl = won ? s.pos * (1/t.price - 1) : -s.pos;
+        if (won) wins++;
+        pnl += tPnl;
+        allTrades.push({
+          wts: t.wts,
+          side: t.side,
+          price: t.price,
+          final: t.final,
+          won,
+          pnl: tPnl,
+          stratName: s.name,
+          asset: s.asset,
+          timeframe: s.timeframe,
+          pos: s.pos,
+        });
+      });
+
+      breakdown.push({
+        name: s.name,
+        label: strategyLabel(s),
+        pos: s.pos,
+        trades: trades.length,
+        wins,
+        losses: trades.length - wins,
+        wr: trades.length ? wins / trades.length : 0,
+        pnl,
+        avgEntry: trades.length ? trades.reduce((s2,t)=>s2+t.price,0)/trades.length : 0,
+      });
+    }
+
+    if (!allTrades.length) {
+      showErr('Жодна з збережених стратегій не дала трейдів. Розширь параметри.');
+      return;
+    }
+
+    // Sort by time
+    allTrades.sort((a,b) => a.wts - b.wts);
+
+    // Compute combined metrics
+    const totalWins = allTrades.filter(t => t.won).length;
+    const totalLosses = allTrades.length - totalWins;
+    const totalPnl = allTrades.reduce((s,t) => s + t.pnl, 0);
+
+    // Drawdown and streaks
+    let eq = 0, peak = 0, maxDD = 0;
+    let ws = 0, ls = 0, worstLS = 0;
+    for (const t of allTrades) {
+      eq += t.pnl;
+      if (eq > peak) peak = eq;
+      const dd = peak - eq;
+      if (dd > maxDD) maxDD = dd;
+      if (t.won) { ws++; ls = 0; }
+      else { ls++; ws = 0; if (ls > worstLS) worstLS = ls; }
+    }
+
+    // Daily breakdown
+    const daily = new Map();
+    for (const t of allTrades) {
+      const day = new Date(t.wts*1000).toISOString().slice(0,10);
+      if (!daily.has(day)) daily.set(day, {n:0,wins:0,losses:0,pnl:0});
+      const d = daily.get(day);
+      d.n++;
+      if (t.won) d.wins++; else d.losses++;
+      d.pnl += t.pnl;
+    }
+    const days = [...daily.entries()].map(([day,d])=>({day,...d,wr:d.wins/d.n})).sort((a,b)=>a.day.localeCompare(b.day));
+    const daysProfitable = days.filter(d=>d.pnl>0).length;
+
+    // Render
+    document.getElementById('combo-info').textContent =
+      `${saved.length} стратегій | ${allTrades.length} трейдів за ${days.length} днів | ` +
+      `найраніший: ${new Date(allTrades[0].wts*1000).toISOString().slice(0,16).replace('T',' ')} UTC | ` +
+      `найпізніший: ${new Date(allTrades[allTrades.length-1].wts*1000).toISOString().slice(0,16).replace('T',' ')} UTC`;
+
+    document.getElementById('c-trades').textContent = allTrades.length;
+    document.getElementById('c-wr').textContent = (100*totalWins/allTrades.length).toFixed(1) + '%';
+    setCol('c-pnl', (totalPnl>=0?'+':'') + '$' + totalPnl.toFixed(2), totalPnl >= 0);
+    setCol('c-avg', (totalPnl/allTrades.length >= 0 ? '+' : '') + '$' + (totalPnl/allTrades.length).toFixed(2), totalPnl >= 0);
+    document.getElementById('c-dd').textContent = '-$' + maxDD.toFixed(2);
+    document.getElementById('c-ls').textContent = worstLS;
+    document.getElementById('c-dp').textContent = daysProfitable + '/' + days.length;
+
+    // Breakdown per strategy
+    const breakdownEl = document.getElementById('combo-breakdown');
+    breakdownEl.innerHTML = '';
+    breakdown.forEach(b => {
+      const row = document.createElement('div');
+      row.className = 'strat-breakdown-row';
+      const pnlColor = b.pnl >= 0 ? '#22c55e' : '#ef4444';
+      row.innerHTML = `
+        <div class="strat-breakdown-name">${b.name} <span style="color:#888;font-weight:400;font-size:11px">— ${b.label}</span></div>
+        <div class="strat-breakdown-stats">
+          <span>Трейдів: <strong>${b.trades}</strong></span>
+          <span>WR: <strong>${(b.wr*100).toFixed(1)}%</strong> (${b.wins}W / ${b.losses}L)</span>
+          <span>Avg entry: <strong>${b.avgEntry.toFixed(3)}</strong></span>
+          <span>Ставка: <strong>$${b.pos}</strong></span>
+          <span style="color:${pnlColor};font-weight:500">PnL: ${b.pnl>=0?'+':''}$${b.pnl.toFixed(2)}</span>
+        </div>
+      `;
+      breakdownEl.appendChild(row);
+    });
+
+    // Daily table
+    const dailyBody = document.getElementById('combo-daily-body');
+    dailyBody.innerHTML = '';
+    days.forEach(d => {
+      const tr = document.createElement('tr');
+      const wrColor = d.wr>=0.7 ? '#22c55e' : d.wr>=0.5 ? '#b45309' : '#ef4444';
+      const pnlColor = d.pnl >= 0 ? '#22c55e' : '#ef4444';
+      tr.innerHTML = `
+        <td>${d.day}</td>
+        <td>${d.n}</td>
+        <td style="color:#22c55e">${d.wins}</td>
+        <td style="color:#ef4444">${d.losses}</td>
+        <td style="font-weight:500;color:${wrColor}">${(d.wr*100).toFixed(1)}%</td>
+        <td style="font-weight:500;color:${pnlColor}">${d.pnl>=0?'+':''}$${d.pnl.toFixed(2)}</td>
+        <td><span class="badge ${d.wr>=0.7?'badge-good':d.wr>=0.5?'badge-warn':'badge-bad'}">${(d.wr*100).toFixed(0)}%</span></td>
+      `;
+      dailyBody.appendChild(tr);
+    });
+
+    // Last 50 trades (newest first)
+    const tradesBody = document.getElementById('combo-trades-body');
+    tradesBody.innerHTML = '';
+    [...allTrades].reverse().slice(0, 50).forEach(t => {
+      const ts = new Date(t.wts*1000).toISOString().slice(5,16).replace('T',' ');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="color:#888">${ts}</td>
+        <td style="font-size:11px;color:#666">${t.stratName}</td>
+        <td><span class="badge badge-${t.side}">${t.side.toUpperCase()}</span></td>
+        <td>${t.price.toFixed(3)}</td>
+        <td><span class="badge badge-${t.won?'win':'loss'}">${t.won?'WIN':'LOSS'}</span></td>
+        <td style="text-align:right;font-weight:500;color:${t.pnl>=0?'#22c55e':'#ef4444'}">${t.pnl>=0?'+':''}$${t.pnl.toFixed(2)}</td>
+      `;
+      tradesBody.appendChild(tr);
+    });
+
+    document.getElementById('loading').style.display='none';
+    document.getElementById('combo-results').style.display='block';
+  } catch(e) {
+    showErr('Помилка: ' + e.message);
+    console.error(e);
+  }
+  setBtn(false);
+}
+// ===============================================
+
+// ========== K-FOLD VALIDATION (4 GROUPS) ==========
+async function runKFold() {
+  hideAllResults();
+  document.getElementById('loading').style.display='block';
+  setBtn(true);
+
+  const asset = document.getElementById('asset').value;
+  const tf = document.getElementById('timeframe').value;
+  const cfg = {
+    emin: +document.getElementById('emin').value,
+    emax: +document.getElementById('emax').value,
+    tmin: +document.getElementById('tmin').value,
+    tmax: +document.getElementById('tmax').value,
+    minDelta: +document.getElementById('delta').value,
+    direction: document.getElementById('direction').value,
+    limit: 999999,
+    useRegime: false,
+    regimeMap: null,
+  };
+  const pos = +document.getElementById('pos').value;
+
+  try {
+    setL('Завантажую дані...');
+    const rows = await fetchRows(asset, tf);
+    setL('Обробка трейдів...');
+
+    const allTrades = process(rows, cfg);
+
+    if (allTrades.length < 40) {
+      showErr(`Замало трейдів для k-fold (${allTrades.length}). Розширте параметри або зменшіть delta.`);
+      return;
+    }
+
+    // Sort by time
+    allTrades.sort((a,b) => a.wts - b.wts);
+
+    // Split into 4 equal groups by time
+    const earliest = allTrades[0].wts;
+    const latest = allTrades[allTrades.length-1].wts;
+    const totalSeconds = latest - earliest;
+    const groupSize = totalSeconds / 4;
+
+    const groups = [[], [], [], []];
+    for (const t of allTrades) {
+      let groupIdx = Math.floor((t.wts - earliest) / groupSize);
+      if (groupIdx >= 4) groupIdx = 3;
+      groups[groupIdx].push(t);
+    }
+
+    // Calculate stats per group
+    const groupResults = groups.map((trades, i) => {
+      if (trades.length === 0) {
+        return {
+          groupIdx: i + 1,
+          dateStart: null,
+          dateEnd: null,
+          days: 0,
+          trades: 0,
+          wins: 0,
+          losses: 0,
+          wr: 0,
+          pnl: 0,
+          avgEntry: 0,
+          maxDD: 0,
+        };
+      }
+
+      const wins = trades.filter(t => t.side === t.final).length;
+      const losses = trades.length - wins;
+      const wr = wins / trades.length;
+
+      let pnl = 0;
+      const tradesPnl = [];
+      for (const t of trades) {
+        const won = t.side === t.final;
+        const tPnl = won ? pos * (1/t.price - 1) : -pos;
+        pnl += tPnl;
+        tradesPnl.push(tPnl);
+      }
+
+      // Max drawdown
+      let eq = 0, peak = 0, maxDD = 0;
+      for (const p of tradesPnl) {
+        eq += p;
+        if (eq > peak) peak = eq;
+        const dd = peak - eq;
+        if (dd > maxDD) maxDD = dd;
+      }
+
+      const avgEntry = trades.reduce((s,t) => s + t.price, 0) / trades.length;
+      const firstDay = new Date(trades[0].wts * 1000).toISOString().slice(0,10);
+      const lastDay = new Date(trades[trades.length-1].wts * 1000).toISOString().slice(0,10);
+      const daySet = new Set(trades.map(t => new Date(t.wts*1000).toISOString().slice(0,10)));
+
+      return {
+        groupIdx: i + 1,
+        dateStart: firstDay,
+        dateEnd: lastDay,
+        days: daySet.size,
+        trades: trades.length,
+        wins,
+        losses,
+        wr,
+        pnl,
+        avgEntry,
+        maxDD,
+      };
+    });
+
+    // Overall stats
+    const totalTrades = allTrades.length;
+    const totalWins = allTrades.filter(t => t.side === t.final).length;
+    const overallWR = totalWins / totalTrades;
+    const overallPnL = groupResults.reduce((s,g) => s + g.pnl, 0);
+    const profitGroups = groupResults.filter(g => g.pnl > 0).length;
+    const validGroups = groupResults.filter(g => g.trades > 0);
+    const minWR = Math.min(...validGroups.map(g => g.wr));
+    const maxWR = Math.max(...validGroups.map(g => g.wr));
+    const wrSpread = maxWR - minWR;
+
+    // Verdict
+    let verdict = '';
+    let verdictColor = '';
+    let interpretation = '';
+
+    if (profitGroups === 4) {
+      verdict = '✅ Robust';
+      verdictColor = '#22c55e';
+      interpretation = `<strong style="color:#22c55e">✅ Стратегія робастна.</strong> Усі 4 групи показали позитивний PnL. Розмах WR <strong>${(wrSpread*100).toFixed(1)} п.п.</strong> ${wrSpread < 0.10 ? '(дуже стабільна)' : wrSpread < 0.15 ? '(нормальна варіація)' : '(значна варіація — слідкуй)'}. Це справжня alpha — не випадковий збіг даних.`;
+    } else if (profitGroups === 3) {
+      verdict = '🟡 Crawled';
+      verdictColor = '#eab308';
+      const failedGroup = groupResults.findIndex(g => g.pnl <= 0) + 1;
+      interpretation = `<strong style="color:#eab308">🟡 Стратегія має слабке місце.</strong> 3 з 4 груп прибуткові, але <strong>група ${failedGroup}</strong> (${groupResults[failedGroup-1].dateStart} — ${groupResults[failedGroup-1].dateEnd}) збиткова. Подумай чи це випадковий поганий період чи структурний зсув ринку. Якщо тільки одна група і вона історична (старі дні) — стратегія ймовірно валідна. Якщо це остання група — увага, тренд міг змінитись.`;
+    } else if (profitGroups === 2) {
+      verdict = '⚠️ Risky';
+      verdictColor = '#f97316';
+      interpretation = `<strong style="color:#f97316">⚠️ Стратегія НЕ робастна.</strong> Тільки 2 з 4 груп прибуткові — це 50/50, дуже близько до випадковості. Стратегія працює "коли пощастить з ринком", а не системно. Скоріш за все це overfit. Не варто торгувати з реальними грошима.`;
+    } else {
+      verdict = '🔴 Failed';
+      verdictColor = '#ef4444';
+      interpretation = `<strong style="color:#ef4444">🔴 Стратегія НЕВАЛІДНА.</strong> Менше половини груп прибуткові. Це означає що загальний позитивний PnL (якщо є) — артефакт одного-двох щасливих періодів. У реальній торгівлі це гарантовано призведе до втрат. Шукай іншу стратегію.`;
+    }
+
+    // Render header stats
+    document.getElementById('kfold-info').textContent =
+      `${asset.toUpperCase()} ${tf} | delta≥${cfg.minDelta}% | ${cfg.emin}-${cfg.emax} | ${cfg.tmin}-${cfg.tmax}s | ставка $${pos} | ${totalTrades} трейдів`;
+
+    document.getElementById('kf-wr').textContent = (overallWR*100).toFixed(1) + '%';
+    setCol('kf-pnl', (overallPnL>=0?'+':'')+'$'+overallPnL.toFixed(2), overallPnL>=0);
+    document.getElementById('kf-profit-groups').textContent = `${profitGroups}/4`;
+    document.getElementById('kf-profit-groups').style.color = profitGroups === 4 ? '#22c55e' : profitGroups >= 2 ? '#eab308' : '#ef4444';
+    document.getElementById('kf-min-wr').textContent = (minWR*100).toFixed(1) + '%';
+    document.getElementById('kf-min-wr').style.color = minWR >= 0.75 ? '#22c55e' : minWR >= 0.60 ? '#eab308' : '#ef4444';
+    document.getElementById('kf-max-wr').textContent = (maxWR*100).toFixed(1) + '%';
+    document.getElementById('kf-max-wr').style.color = '#22c55e';
+    document.getElementById('kf-spread').textContent = (wrSpread*100).toFixed(1) + ' п.п.';
+    document.getElementById('kf-spread').style.color = wrSpread < 0.10 ? '#22c55e' : wrSpread < 0.20 ? '#eab308' : '#ef4444';
+    document.getElementById('kf-verdict').textContent = verdict;
+    document.getElementById('kf-verdict').style.color = verdictColor;
+
+    // Render groups table
+    const tbody = document.getElementById('kfold-groups-body');
+    tbody.innerHTML = '';
+    groupResults.forEach(g => {
+      const tr = document.createElement('tr');
+      if (g.trades === 0) {
+        tr.innerHTML = `
+          <td><strong>${g.groupIdx}</strong></td>
+          <td colspan="8" style="color:#888;text-align:center">Порожня група (немає трейдів у цьому періоді)</td>
+        `;
+      } else {
+        const wrColor = g.wr >= 0.80 ? '#22c55e' : g.wr >= 0.65 ? '#eab308' : '#ef4444';
+        const pnlColor = g.pnl >= 0 ? '#22c55e' : '#ef4444';
+        const groupVerdict = g.pnl > 0 
+          ? '<span style="color:#22c55e">✅ Profit</span>' 
+          : '<span style="color:#ef4444">❌ Loss</span>';
+        tr.innerHTML = `
+          <td><strong>${g.groupIdx}</strong></td>
+          <td style="font-size:11px;color:#666">${g.dateStart}<br>${g.dateEnd}</td>
+          <td>${g.days}</td>
+          <td>${g.trades} <span style="color:#888;font-size:11px">(${g.wins}W/${g.losses}L)</span></td>
+          <td style="font-weight:500;color:${wrColor}">${(g.wr*100).toFixed(1)}%</td>
+          <td style="font-weight:500;color:${pnlColor}">${g.pnl>=0?'+':''}$${g.pnl.toFixed(2)}</td>
+          <td>${g.avgEntry.toFixed(3)}</td>
+          <td style="color:#ef4444">-$${g.maxDD.toFixed(2)}</td>
+          <td>${groupVerdict}</td>
+        `;
+      }
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById('kfold-interpretation').innerHTML = interpretation;
+    document.getElementById('loading').style.display='none';
+    document.getElementById('kfold-results').style.display='block';
+  } catch (e) {
+    showErr('Помилка: ' + e.message);
+    console.error(e);
+  }
+  setBtn(false);
+}
+// ===============================================
+
+// ========== K-FOLD OPTIMIZER (Quick + Strict) ==========
+
+// Параметрна сітка для пошуку
+const KFOPT_GRID = {
+  delta:     [0.05, 0.07, 0.10, 0.13],
+  emin:      [0.70, 0.75, 0.78, 0.82],
+  emax:      [0.85, 0.90, 0.95],
+  tmin:      [10, 30, 60, 120],
+  tmax:      [200, 240, 300],
+  direction: ['follow', 'contrarian']  // 'cheaper' прибрано — post-hoc selection, бот так не може
+};
+
+// Маппінг direction внутрішнього → людського
+const DIR_LABEL = {
+  'follow': 'Bullish',
+  'contrarian': 'Contrarian'
+};
+
+// Жорсткі фільтри для strict mode
+const KFOPT_STRICT_FILTERS = {
+  minTradesPerGroup: 80,     // мінімум 80 трейдів на групу (статистична впевненість)
+  minWorstGroupPnL: 20,      // мінімум $20 на найгіршій групі (real edge, не шум)
+  maxAvgEntry: 0.88,         // не дозволяти стратегії що тільки на super-cheap
+  minProfitGroups: 4,        // 4/4 must be profit
+  minWRperGroup: 0.78,       // кожна група мінімум 78% WR
+  maxSpreadWR: 0.10,         // макс різниця між найкращою і найгіршою WR групою = 10 п.п.
+};
+
+// Розрахунок robustness score (0-100)
+function calcRobustnessScore(groups) {
+  if (groups.length !== 4 || groups.some(g => g.trades === 0)) return 0;
+
+  const profitGroups = groups.filter(g => g.pnl > 0).length;
+  const wrs = groups.map(g => g.wr);
+  const pnls = groups.map(g => g.pnl);
+  const minWR = Math.min(...wrs);
+  const maxWR = Math.max(...wrs);
+  const minPnL = Math.min(...pnls);
+
+  // 1. Profit groups: 25, 18, 12, 6, 0
+  const sProfit = [0, 6, 12, 18, 25][profitGroups];
+
+  // 2. Min WR: 25 * (minWR - 0.5) / 0.5, capped 0-25
+  const sMinWR = Math.max(0, Math.min(25, 25 * (minWR - 0.50) / 0.50));
+
+  // 3. Min PnL: 0 if < 0, 25 if > $30, linear in between (assuming $10 bet)
+  let sMinPnL;
+  if (minPnL < 0) sMinPnL = 0;
+  else if (minPnL > 30) sMinPnL = 25;
+  else sMinPnL = 25 * minPnL / 30;
+
+  // 4. WR stability: 25 if spread=0, 0 if spread > 0.20
+  const spread = maxWR - minWR;
+  const sStability = Math.max(0, 25 * (0.20 - spread) / 0.20);
+
+  return Math.round(sProfit + sMinWR + sMinPnL + sStability);
+}
+
+// Запуск backtest для однієї конфігурації, повертає {strategy, groups, score}
+function runOneKFoldBacktest(rows, cfg, pos) {
+  const trades = process(rows, cfg);
+  if (trades.length < 40) return null;
+
+  trades.sort((a,b) => a.wts - b.wts);
+  const earliest = trades[0].wts;
+  const latest = trades[trades.length-1].wts;
+  const groupSize = (latest - earliest) / 4;
+
+  const groups = [[], [], [], []];
+  for (const t of trades) {
+    let i = Math.floor((t.wts - earliest) / groupSize);
+    if (i >= 4) i = 3;
+    groups[i].push(t);
+  }
+
+  const groupStats = groups.map(g => {
+    if (g.length === 0) return { trades: 0, wr: 0, pnl: 0, avgEntry: 0, maxDD: 0 };
+    let wins = 0, pnl = 0;
+    const tradesPnl = [];
+    for (const t of g) {
+      const won = t.side === t.final;
+      if (won) wins++;
+      const p = won ? pos * (1/t.price - 1) : -pos;
+      pnl += p;
+      tradesPnl.push(p);
+    }
+    let eq = 0, peak = 0, maxDD = 0;
+    for (const p of tradesPnl) {
+      eq += p;
+      if (eq > peak) peak = eq;
+      if (peak - eq > maxDD) maxDD = peak - eq;
+    }
+    return {
+      trades: g.length,
+      wins,
+      losses: g.length - wins,
+      wr: wins / g.length,
+      pnl,
+      avgEntry: g.reduce((s,t)=>s+t.price,0) / g.length,
+      maxDD,
+      dateStart: new Date(g[0].wts * 1000).toISOString().slice(0,10),
+      dateEnd: new Date(g[g.length-1].wts * 1000).toISOString().slice(0,10),
+    };
+  });
+
+  const totalWins = trades.filter(t => t.side === t.final).length;
+  const totalPnL = groupStats.reduce((s,g) => s + g.pnl, 0);
+  const overallAvgEntry = trades.reduce((s,t)=>s+t.price,0) / trades.length;
+  const score = calcRobustnessScore(groupStats);
+
+  return {
+    cfg, score, groups: groupStats,
+    totalTrades: trades.length,
+    totalWins,
+    totalWR: totalWins / trades.length,
+    totalPnL,
+    overallAvgEntry,
+    minPnL: Math.min(...groupStats.map(g=>g.pnl)),
+    minWR: Math.min(...groupStats.map(g=>g.wr)),
+    maxWR: Math.max(...groupStats.map(g=>g.wr)),
+    spread: Math.max(...groupStats.map(g=>g.wr)) - Math.min(...groupStats.map(g=>g.wr)),
+    profitGroups: groupStats.filter(g => g.pnl > 0).length,
+  };
+}
+
+// Чи проходить strict filters (статичні, для compatibility)
+function passesStrictFilters(result) {
+  if (!result) return false;
+  const F = KFOPT_STRICT_FILTERS;
+  if (result.profitGroups < F.minProfitGroups) return false;
+  if (result.groups.some(g => g.trades < F.minTradesPerGroup)) return false;
+  if (result.minPnL < F.minWorstGroupPnL) return false;
+  if (result.overallAvgEntry > F.maxAvgEntry) return false;
+  if (result.minWR < F.minWRperGroup) return false;
+  if (result.spread > F.maxSpreadWR) return false;
+  return true;
+}
+
+// Helper: median value
+function medianOf(arr) {
+  if (!arr.length) return 0;
+  const sorted = [...arr].sort((a,b) => a-b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid-1] + sorted[mid]) / 2;
+}
+
+// Обчислюємо adaptive filters з даних
+function calcAdaptiveFilters(allResults) {
+  if (!allResults.length) return null;
+
+  // Use only robust 4/4 results for baseline calculation (бо вони — основа edge)
+  const robustResults = allResults.filter(r => r.profitGroups === 4);
+  const baseSet = robustResults.length >= 10 ? robustResults : allResults;
+
+  // Top 50% of trades count (бо хочемо filters що допускають середній за volume market)
+  const tradesArr = baseSet.map(r => r.totalTrades).sort((a,b) => b-a);
+  const topHalfTrades = tradesArr.slice(0, Math.max(5, Math.ceil(tradesArr.length / 2)));
+  const medianTopTrades = medianOf(topHalfTrades);
+  const expectedPerGroup = medianTopTrades / 4;
+
+  // Median PnL of robust strategies
+  const medianTotalPnL = medianOf(baseSet.map(r => r.totalPnL));
+
+  // Adaptive thresholds
+  const minTradesPerGroup = Math.max(15, Math.round(expectedPerGroup * 0.30));
+  const minWorstGroupPnL = Math.max(0, medianTotalPnL > 0 ? medianTotalPnL * 0.05 : 0);
+
+  // Spread scales with sample size — менший sample = більший допустимий variance
+  let maxSpreadWR;
+  if (expectedPerGroup >= 200) maxSpreadWR = 0.10;
+  else if (expectedPerGroup >= 80) maxSpreadWR = 0.13;
+  else if (expectedPerGroup >= 30) maxSpreadWR = 0.18;
+  else maxSpreadWR = 0.25;
+
+  return {
+    minProfitGroups: 4,
+    minTradesPerGroup,
+    minWorstGroupPnL: +minWorstGroupPnL.toFixed(2),
+    maxAvgEntry: 0.92,        // universal — захист від only-cheap стратегій
+    minWRperGroup: 0.75,      // universal — нижня planka edge
+    maxSpreadWR: +maxSpreadWR.toFixed(2),
+    _expectedPerGroup: Math.round(expectedPerGroup),
+    _medianTotalPnL: +medianTotalPnL.toFixed(2),
+    _baseSize: baseSet.length,
+  };
+}
+
+function passesAdaptiveFilters(result, F) {
+  if (!result || !F) return false;
+  if (result.profitGroups < F.minProfitGroups) return false;
+  if (result.groups.some(g => g.trades < F.minTradesPerGroup)) return false;
+  if (result.minPnL < F.minWorstGroupPnL) return false;
+  if (result.overallAvgEntry > F.maxAvgEntry) return false;
+  if (result.minWR < F.minWRperGroup) return false;
+  if (result.spread > F.maxSpreadWR) return false;
+  return true;
+}
+
+// Зберігаємо results для дій з UI
+let LAST_KFOPT_RESULTS = [];
+let LAST_KFOPT_ADAPTIVE_FILTERS = null;
+
+async function runKFoldOptimizer(strict) {
+  hideAllResults();
+  // Reset stale sub-cards from previous runs
+  const stopCard = document.getElementById('stoploss-test-card');
+  const detailCard = document.getElementById('kfopt-detail-card');
+  if (stopCard) stopCard.style.display = 'none';
+  if (detailCard) detailCard.style.display = 'none';
+  document.getElementById('loading').style.display='block';
+  setBtn(true);
+
+  const startTime = Date.now();
+  const asset = document.getElementById('asset').value;
+  const tf = document.getElementById('timeframe').value;
+  const pos = +document.getElementById('pos').value;
+
+  try {
+    setL('Завантажую дані...');
+    const rows = await fetchRows(asset, tf);
+    setL('Підготовка...');
+
+    // ===== WALK-FORWARD SPLIT =====
+    const useWF = document.getElementById('walkforward').checked;
+    const trainPct = +document.getElementById('train-pct').value / 100;
+    let trainRows, testRows, splitDate = null;
+    if (useWF) {
+      const split = splitRowsByTime(rows, trainPct);
+      if (!split.test.length) {
+        showErr('Замало даних для walk-forward. Вимкни walk-forward або збільш ліміт вікон.');
+        return;
+      }
+      trainRows = split.train;
+      testRows = split.test;
+      splitDate = split.splitDate;
+      setL(`Walk-forward: train ${trainRows.length} рядків / test ${testRows.length} рядків. Split: ${splitDate.toISOString().slice(0,16).replace('T',' ')} UTC`);
+      await new Promise(r => setTimeout(r, 50));
+    } else {
+      trainRows = rows;
+      testRows = null;
+    }
+
+    // Generate all valid combinations
+    const combos = [];
+    for (const delta of KFOPT_GRID.delta)
+      for (const emin of KFOPT_GRID.emin)
+        for (const emax of KFOPT_GRID.emax)
+          if (emin < emax)
+            for (const tmin of KFOPT_GRID.tmin)
+              for (const tmax of KFOPT_GRID.tmax)
+                if (tmin < tmax)
+                  for (const direction of KFOPT_GRID.direction) {
+                    combos.push({
+                      minDelta: delta,
+                      emin, emax, tmin, tmax, direction,
+                      limit: 999999,
+                      useRegime: false,
+                      regimeMap: null,
+                    });
+                  }
+
+    setL(`Обробка ${combos.length} комбінацій (0%)...`);
+
+    // Phase 1: Run all backtests на TRAIN наборі (без strict фільтрації — collect everything)
+    const validResults = [];
+    let tested = 0;
+    let robust = 0;
+
+    for (let i = 0; i < combos.length; i++) {
+      const res = runOneKFoldBacktest(trainRows, combos[i], pos);
+      tested++;
+      if (res) {
+        validResults.push(res);
+        if (res.profitGroups === 4) robust++;
+      }
+
+      // UI update every 50 iterations
+      if (i % 50 === 0 || i === combos.length - 1) {
+        const pct = Math.round(100 * (i+1) / combos.length);
+        setL(`Train k-fold ${combos.length} комбінацій (${pct}%) | valid: ${validResults.length} | robust: ${robust}`);
+        await new Promise(r => setTimeout(r, 0));
+      }
+    }
+
+    // Phase 2: Apply filtering
+    let allResults;
+    let adaptiveFilters = null;
+    let passed = 0;
+
+    if (strict) {
+      setL('Обчислюю adaptive filters для цього маркету...');
+      await new Promise(r => setTimeout(r, 50));
+      adaptiveFilters = calcAdaptiveFilters(validResults);
+
+      if (adaptiveFilters) {
+        allResults = validResults.filter(r => passesAdaptiveFilters(r, adaptiveFilters));
+        passed = allResults.length;
+      } else {
+        allResults = [];
+        passed = 0;
+      }
+      LAST_KFOPT_ADAPTIVE_FILTERS = adaptiveFilters;
+    } else {
+      allResults = validResults;
+      passed = validResults.length;
+      LAST_KFOPT_ADAPTIVE_FILTERS = null;
+    }
+
+    // Sort: Quick by score, Strict by min group PnL (worst case optimization)
+    if (strict) {
+      allResults.sort((a,b) => b.minPnL - a.minPnL);
+    } else {
+      allResults.sort((a,b) => b.score - a.score);
+    }
+
+    // ===== WALK-FORWARD VALIDATION на test set =====
+    // Беремо топ-50 кандидатів і прогонюємо їх через test set (out-of-sample).
+    // Стратегія "справжня" якщо тримається і на test даних.
+    if (useWF && testRows) {
+      setL('Out-of-sample валідація на test даних...');
+      await new Promise(r => setTimeout(r, 50));
+      const top50 = allResults.slice(0, 50);
+      for (const r of top50) {
+        const testTrades = process(testRows, r.cfg);
+        if (testTrades.length === 0) {
+          r.testStats = null;
+        } else {
+          r.testStats = stats(testTrades, pos);
+        }
+      }
+      // Пересортовуємо за test PnL (out-of-sample результат)
+      top50.sort((a, b) => {
+        const ap = a.testStats ? a.testStats.pnl : -Infinity;
+        const bp = b.testStats ? b.testStats.pnl : -Infinity;
+        return bp - ap;
+      });
+      // Інші (поза топ-50) залишаються в кінці без testStats
+      allResults = [...top50, ...allResults.slice(50)];
+    }
+
+    const top = allResults.slice(0, 15);
+
+    LAST_KFOPT_RESULTS = top;
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+    // Render header
+    document.getElementById('kfopt-title').textContent = strict
+      ? '🔬 Strict K-fold Optimizer — топ робастних стратегій (тільки ті що пройшли жорсткі фільтри)'
+      : '🚀 Quick K-fold Optimizer — топ робастних стратегій';
+
+    document.getElementById('kfopt-info').textContent =
+      `${asset.toUpperCase()} ${tf} | ставка $${pos} | перебрано ${combos.length} комбінацій | час: ${elapsed}s${useWF ? ` | Walk-forward: train ${trainRows.length}/test ${testRows.length} | Sort by TEST PnL` : ' | Sort by train metric (no walk-forward)'}`;
+
+    document.getElementById('kfopt-explanation').innerHTML = strict
+      ? (adaptiveFilters
+        ? `<strong>Жорсткий пошук з adaptive filters.</strong> Пороги обчислюються з ваших даних, не зашиті:
+           <ul style="margin:8px 0;padding-left:24px">
+             <li>4/4 групи прибуткові ✓</li>
+             <li>Мін. <strong>${adaptiveFilters.minTradesPerGroup}</strong> трейдів/групу 
+               <span style="color:#888">(20% від медіани топ-стратегій)</span></li>
+             <li>PnL найгіршої групи ≥ <strong>$${adaptiveFilters.minWorstGroupPnL.toFixed(2)}</strong> 
+               <span style="color:#888">(5% від медіанного загального PnL)</span></li>
+             <li>Avg entry ≤ <strong>${adaptiveFilters.maxAvgEntry}</strong> (universal)</li>
+             <li>WR ≥ <strong>${(adaptiveFilters.minWRperGroup*100).toFixed(0)}%</strong> на кожній групі (universal)</li>
+             <li>Спред WR ≤ <strong>${(adaptiveFilters.maxSpreadWR*100).toFixed(0)} п.п.</strong> 
+               <span style="color:#888">(scaled to sample size: експект ~${adaptiveFilters._expectedPerGroup} трейдів/групу)</span></li>
+           </ul>
+           <strong>Сортування — за PnL найгіршої групи</strong> (worst-case оптимізація).`
+        : `<strong>Помилка:</strong> не вдалось обчислити adaptive filters. Спробуйте Quick search спочатку.`)
+      : `<strong>Швидкий пошук.</strong> Показано топ-15 стратегій за robustness score 
+         (sortування: profit groups + min WR + min PnL + WR stability). 
+         Натисни 🔬 поруч зі стратегією щоб перевірити її через детальний аналіз з sensitivity analysis.
+         Для глибокої перевірки використай Strict K-fold Search з adaptive filters.`;
+
+    document.getElementById('kfopt-tested').textContent = combos.length;
+    document.getElementById('kfopt-passed').textContent = passed;
+    document.getElementById('kfopt-passed').style.color = passed > 0 ? '#22c55e' : '#ef4444';
+    document.getElementById('kfopt-robust').textContent = robust;
+    document.getElementById('kfopt-robust').style.color = robust > 0 ? '#22c55e' : '#888';
+    document.getElementById('kfopt-best-score').textContent = top.length > 0 ? top[0].score : '—';
+    document.getElementById('kfopt-time').textContent = elapsed + 's';
+
+    // Render table
+    const tbody = document.getElementById('kfopt-body');
+    tbody.innerHTML = '';
+
+    if (top.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="15" style="text-align:center;color:#888;padding:30px">
+        ${strict ? 'Жодна стратегія не пройшла жорсткі фільтри. Спробуй Quick search щоб побачити що є взагалі.' : 'Не знайдено стратегій з достатньою кількістю трейдів.'}
+      </td></tr>`;
+    } else {
+      top.forEach((r, idx) => {
+        const tr = document.createElement('tr');
+        const verdictHtml = r.profitGroups === 4 ? '<span style="color:#22c55e;font-weight:500">✅ 4/4</span>'
+          : r.profitGroups === 3 ? '<span style="color:#eab308">🟡 3/4</span>'
+          : r.profitGroups === 2 ? '<span style="color:#f97316">⚠️ 2/4</span>'
+          : '<span style="color:#ef4444">🔴 ' + r.profitGroups + '/4</span>';
+        const wrColor = r.totalWR >= 0.80 ? '#22c55e' : r.totalWR >= 0.70 ? '#eab308' : '#ef4444';
+        const pnlColor = r.totalPnL >= 0 ? '#22c55e' : '#ef4444';
+        const minPnlColor = r.minPnL >= 0 ? '#22c55e' : '#ef4444';
+        const scoreColor = r.score >= 80 ? '#22c55e' : r.score >= 60 ? '#eab308' : r.score >= 40 ? '#f97316' : '#ef4444';
+
+        // Test stats з walk-forward (можуть бути null якщо WF вимкнутий або 0 трейдів на test)
+        const ts = r.testStats;
+        let testTradesHtml, testWrHtml, testPnlHtml;
+        if (ts) {
+          const testWrColor = ts.wr >= 0.75 ? '#22c55e' : ts.wr >= 0.60 ? '#eab308' : '#ef4444';
+          const testPnlColor = ts.pnl >= 0 ? '#22c55e' : '#ef4444';
+          testTradesHtml = `<td>${ts.n}</td>`;
+          testWrHtml = `<td style="color:${testWrColor};font-weight:500">${(ts.wr*100).toFixed(1)}%</td>`;
+          testPnlHtml = `<td style="color:${testPnlColor};font-weight:500">${ts.pnl>=0?'+':''}$${ts.pnl.toFixed(2)}</td>`;
+        } else {
+          testTradesHtml = '<td style="color:#888">—</td>';
+          testWrHtml = '<td style="color:#888">—</td>';
+          testPnlHtml = '<td style="color:#888">—</td>';
+        }
+
+        tr.innerHTML = `
+          <td>${idx + 1}</td>
+          <td style="font-weight:600;color:${scoreColor}">${r.score}</td>
+          <td>${verdictHtml}</td>
+          <td>≥${r.cfg.minDelta}%</td>
+          <td style="font-size:12px">${r.cfg.emin}-${r.cfg.emax}</td>
+          <td style="font-size:12px">${r.cfg.tmin}-${r.cfg.tmax}s</td>
+          <td style="font-size:11px">${DIR_LABEL[r.cfg.direction]}</td>
+          <td>${r.totalTrades}</td>
+          <td style="color:${wrColor};font-weight:500">${(r.totalWR*100).toFixed(1)}%</td>
+          <td style="color:${pnlColor};font-weight:500">${r.totalPnL>=0?'+':''}$${r.totalPnL.toFixed(2)}</td>
+          <td style="color:${minPnlColor};font-weight:500">${r.minPnL>=0?'+':''}$${r.minPnL.toFixed(2)}</td>
+          ${testTradesHtml}
+          ${testWrHtml}
+          ${testPnlHtml}
+          <td style="white-space:nowrap">
+            <button onclick="useKFoptStrategy(${idx})" style="padding:4px 8px;font-size:11px;background:#22c55e;color:white;border:none;border-radius:4px;cursor:pointer">Use</button>
+            <button onclick="detailKFoptStrategy(${idx})" style="padding:4px 8px;font-size:11px;background:#7c3aed;color:white;border:none;border-radius:4px;cursor:pointer">🔬</button>
+            <button onclick="stopLossTest(${idx})" style="padding:4px 8px;font-size:11px;background:#ef4444;color:white;border:none;border-radius:4px;cursor:pointer">🛑</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.getElementById('loading').style.display='none';
+    document.getElementById('kfopt-results').style.display='block';
+  } catch (e) {
+    showErr('Помилка: ' + e.message);
+    console.error(e);
+  }
+  setBtn(false);
+}
+
+// Завантажити параметри в фільтри зверху
+function useKFoptStrategy(idx) {
+  const r = LAST_KFOPT_RESULTS[idx];
+  if (!r) return;
+  document.getElementById('emin').value = r.cfg.emin;
+  document.getElementById('emax').value = r.cfg.emax;
+  document.getElementById('tmin').value = r.cfg.tmin;
+  document.getElementById('tmax').value = r.cfg.tmax;
+  document.getElementById('delta').value = r.cfg.minDelta;
+  document.getElementById('direction').value = r.cfg.direction;
+  // Update slider labels
+  ['emin','emax','tmin','tmax','delta'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.oninput) el.oninput();
+    const ev = new Event('input', {bubbles:true});
+    if (el) el.dispatchEvent(ev);
+  });
+  alert(`Параметри завантажено: delta≥${r.cfg.minDelta}%, ${r.cfg.emin}-${r.cfg.emax}, ${r.cfg.tmin}-${r.cfg.tmax}s, ${DIR_LABEL[r.cfg.direction]}.\nТепер натисни "K-fold (4 групи)" або "Запустити аналіз".`);
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+// Детальний аналіз стратегії — sensitivity check + strict filters checklist
+async function detailKFoptStrategy(idx) {
+  const r = LAST_KFOPT_RESULTS[idx];
+  if (!r) return;
+
+  const card = document.getElementById('kfopt-detail-card');
+  const content = document.getElementById('kfopt-detail-content');
+  card.style.display = 'block';
+  card.scrollIntoView({behavior:'smooth', block:'start'});
+
+  content.innerHTML = '<div style="padding:20px;color:#888">Запускаю sensitivity analysis...</div>';
+
+  const asset = document.getElementById('asset').value;
+  const tf = document.getElementById('timeframe').value;
+  const pos = +document.getElementById('pos').value;
+  const rows = await fetchRows(asset, tf);
+
+  // Use adaptive filters if available (after Strict search), else fall back to static
+  const F = LAST_KFOPT_ADAPTIVE_FILTERS || KFOPT_STRICT_FILTERS;
+  const isAdaptive = LAST_KFOPT_ADAPTIVE_FILTERS !== null;
+  const checks = [
+    {
+      name: `4/4 групи прибуткові`,
+      pass: r.profitGroups >= F.minProfitGroups,
+      actual: `${r.profitGroups}/4`,
+      required: `≥${F.minProfitGroups}/4`,
+    },
+    {
+      name: `Мін. трейдів на групі`,
+      pass: r.groups.every(g => g.trades >= F.minTradesPerGroup),
+      actual: `${Math.min(...r.groups.map(g => g.trades))}`,
+      required: `≥${F.minTradesPerGroup}`,
+    },
+    {
+      name: `PnL найгіршої групи`,
+      pass: r.minPnL >= F.minWorstGroupPnL,
+      actual: `$${r.minPnL.toFixed(2)}`,
+      required: `≥$${F.minWorstGroupPnL}`,
+    },
+    {
+      name: `Avg entry price`,
+      pass: r.overallAvgEntry <= F.maxAvgEntry,
+      actual: r.overallAvgEntry.toFixed(3),
+      required: `≤${F.maxAvgEntry}`,
+    },
+    {
+      name: `Min WR на групі`,
+      pass: r.minWR >= F.minWRperGroup,
+      actual: `${(r.minWR*100).toFixed(1)}%`,
+      required: `≥${(F.minWRperGroup*100).toFixed(0)}%`,
+    },
+    {
+      name: `Спред WR (стабільність)`,
+      pass: r.spread <= F.maxSpreadWR,
+      actual: `${(r.spread*100).toFixed(1)} п.п.`,
+      required: `≤${(F.maxSpreadWR*100).toFixed(0)} п.п.`,
+    },
+  ];
+
+  // Sensitivity analysis: невеликі perturbations кожного параметру
+  const sensitivityTests = [];
+  const perturbations = [
+    { name: 'delta -0.02', cfg: {...r.cfg, minDelta: Math.max(0.01, r.cfg.minDelta - 0.02)}},
+    { name: 'delta +0.02', cfg: {...r.cfg, minDelta: r.cfg.minDelta + 0.02}},
+    { name: 'emin -0.03', cfg: {...r.cfg, emin: Math.max(0.50, r.cfg.emin - 0.03)}},
+    { name: 'emin +0.03', cfg: {...r.cfg, emin: Math.min(r.cfg.emax - 0.02, r.cfg.emin + 0.03)}},
+    { name: 'emax -0.03', cfg: {...r.cfg, emax: Math.max(r.cfg.emin + 0.02, r.cfg.emax - 0.03)}},
+    { name: 'emax +0.03', cfg: {...r.cfg, emax: Math.min(0.99, r.cfg.emax + 0.03)}},
+    { name: 'tmin -30s', cfg: {...r.cfg, tmin: Math.max(0, r.cfg.tmin - 30)}},
+    { name: 'tmin +30s', cfg: {...r.cfg, tmin: Math.min(r.cfg.tmax - 10, r.cfg.tmin + 30)}},
+  ];
+
+  for (const p of perturbations) {
+    const res = runOneKFoldBacktest(rows, p.cfg, pos);
+    sensitivityTests.push({
+      name: p.name,
+      score: res ? res.score : 0,
+      pnl: res ? res.totalPnL : 0,
+      wr: res ? res.totalWR : 0,
+      trades: res ? res.totalTrades : 0,
+      profitGroups: res ? res.profitGroups : 0,
+      delta: res ? res.score - r.score : -r.score,
+    });
+  }
+
+  const allChecksPass = checks.every(c => c.pass);
+  const sensitivityStable = sensitivityTests.filter(t => Math.abs(t.delta) <= 10).length >= 6;
+
+  let html = `
+    <div style="font-size:14px;margin-bottom:16px">
+      <strong>Стратегія:</strong> delta≥${r.cfg.minDelta}% | ${r.cfg.emin}-${r.cfg.emax} | ${r.cfg.tmin}-${r.cfg.tmax}s | ${DIR_LABEL[r.cfg.direction]} |
+      <strong>Score: ${r.score}/100</strong>
+    </div>
+
+    <h3 style="margin-top:16px;margin-bottom:8px">📋 Strict Filters Checklist ${isAdaptive ? '<span style="font-size:11px;background:#7c3aed;color:white;padding:2px 6px;border-radius:4px;font-weight:500;vertical-align:middle">ADAPTIVE</span>' : ''}</h3>
+    <table style="margin-bottom:20px">
+      <thead><tr><th>Перевірка</th><th>Required</th><th>Actual</th><th>Status</th></tr></thead>
+      <tbody>
+  `;
+  for (const c of checks) {
+    html += `<tr>
+      <td>${c.name}</td>
+      <td>${c.required}</td>
+      <td style="font-weight:500">${c.actual}</td>
+      <td>${c.pass ? '<span style="color:#22c55e;font-weight:500">✅ PASS</span>' : '<span style="color:#ef4444;font-weight:500">❌ FAIL</span>'}</td>
+    </tr>`;
+  }
+  html += `</tbody></table>
+
+    <div style="padding:10px;background:${allChecksPass ? '#f0fdf4' : '#fef2f2'};border-radius:6px;margin-bottom:20px;border-left:3px solid ${allChecksPass ? '#22c55e' : '#ef4444'}">
+      ${allChecksPass
+        ? '<strong style="color:#22c55e">✅ Стратегія проходить ВСІ жорсткі фільтри</strong> — можна вважати валідною для розгляду торгівлі.'
+        : '<strong style="color:#ef4444">❌ Стратегія НЕ проходить strict filters</strong> — є слабкі місця. Дивись checklist.'}
+    </div>
+
+    <h3 style="margin-top:16px;margin-bottom:8px">🎯 Sensitivity Analysis</h3>
+    <div style="font-size:12px;color:#666;margin-bottom:8px">
+      Невеликі зміни параметрів — як змінюється score? Якщо невелика зміна сильно ламає результат — це overfit.
+    </div>
+    <table style="margin-bottom:20px">
+      <thead><tr><th>Перевірка</th><th>Score</th><th>Δ Score</th><th>Trades</th><th>WR%</th><th>PnL</th><th>Profit groups</th></tr></thead>
+      <tbody>
+        <tr style="background:#faf5ff;font-weight:500">
+          <td>Original</td>
+          <td>${r.score}</td>
+          <td>—</td>
+          <td>${r.totalTrades}</td>
+          <td>${(r.totalWR*100).toFixed(1)}%</td>
+          <td style="color:${r.totalPnL>=0?'#22c55e':'#ef4444'}">${r.totalPnL>=0?'+':''}$${r.totalPnL.toFixed(2)}</td>
+          <td>${r.profitGroups}/4</td>
+        </tr>
+  `;
+  for (const t of sensitivityTests) {
+    const dColor = Math.abs(t.delta) <= 5 ? '#22c55e' : Math.abs(t.delta) <= 15 ? '#eab308' : '#ef4444';
+    const dSign = t.delta >= 0 ? '+' : '';
+    html += `<tr>
+      <td style="font-size:12px">${t.name}</td>
+      <td>${t.score}</td>
+      <td style="color:${dColor};font-weight:500">${dSign}${t.delta}</td>
+      <td>${t.trades}</td>
+      <td>${(t.wr*100).toFixed(1)}%</td>
+      <td style="color:${t.pnl>=0?'#22c55e':'#ef4444'}">${t.pnl>=0?'+':''}$${t.pnl.toFixed(2)}</td>
+      <td>${t.profitGroups}/4</td>
+    </tr>`;
+  }
+  html += `</tbody></table>
+
+    <div style="padding:10px;background:${sensitivityStable ? '#f0fdf4' : '#fffbeb'};border-radius:6px;border-left:3px solid ${sensitivityStable ? '#22c55e' : '#eab308'}">
+      ${sensitivityStable
+        ? '<strong style="color:#22c55e">✅ Стратегія СТАБІЛЬНА до невеликих змін параметрів</strong> — це означає що edge реальний, а не overfit на конкретні значення.'
+        : '<strong style="color:#eab308">🟡 Стратегія ЧУТЛИВА до параметрів</strong> — невеликі зміни сильно впливають на результат. Можливий overfit. Будь обережний з реальною торгівлею.'}
+    </div>
+
+    <h3 style="margin-top:20px;margin-bottom:8px">📊 Розбивка по групах</h3>
+    <table>
+      <thead><tr><th>Група</th><th>Період</th><th>Трейдів</th><th>WR%</th><th>PnL</th><th>Avg entry</th><th>Max DD</th></tr></thead>
+      <tbody>
+  `;
+  r.groups.forEach((g, i) => {
+    if (g.trades === 0) return;
+    const wrCol = g.wr >= 0.80 ? '#22c55e' : g.wr >= 0.65 ? '#eab308' : '#ef4444';
+    const pnlCol = g.pnl >= 0 ? '#22c55e' : '#ef4444';
+    html += `<tr>
+      <td><strong>${i+1}</strong></td>
+      <td style="font-size:11px">${g.dateStart}<br>${g.dateEnd}</td>
+      <td>${g.trades} <span style="color:#888;font-size:11px">(${g.wins}W/${g.losses}L)</span></td>
+      <td style="color:${wrCol};font-weight:500">${(g.wr*100).toFixed(1)}%</td>
+      <td style="color:${pnlCol};font-weight:500">${g.pnl>=0?'+':''}$${g.pnl.toFixed(2)}</td>
+      <td>${g.avgEntry.toFixed(3)}</td>
+      <td style="color:#ef4444">-$${g.maxDD.toFixed(2)}</td>
+    </tr>`;
+  });
+  html += `</tbody></table>
+
+    <div style="margin-top:20px;padding:12px;background:#f9fafb;border-radius:6px;font-size:13px;line-height:1.6">
+      <strong>Підсумок:</strong>
+      ${allChecksPass && sensitivityStable
+        ? '<span style="color:#22c55e">Ця стратегія проходить ВСІ перевірки і стабільна до perturbations. Це найкращий сигнал що edge реальний. Можна розглядати для торгівлі з малою ставкою.</span>'
+        : allChecksPass && !sensitivityStable
+        ? '<span style="color:#eab308">Стратегія проходить filters але чутлива до параметрів. Підозра на overfit — потрібна додаткова перевірка на новіших даних.</span>'
+        : !allChecksPass && sensitivityStable
+        ? '<span style="color:#eab308">Стратегія стабільна але не проходить деякі strict filters. Дивись чого саме не вистачає в checklist вище.</span>'
+        : '<span style="color:#ef4444">Стратегія не проходить ні filters, ні sensitivity. Не варто торгувати на ній — шукай кращу.</span>'
+      }
     </div>
   `;
-  
-  container.innerHTML = html;
+  content.innerHTML = html;
+}
+// ===============================================
+
+// ========== STOP-LOSS TEST PAGE ==========
+
+// Симуляція торгівлі зі стратегією + stop-loss режимом
+function simulateStopLoss(trades, mode, pos) {
+  // Sort by time ascending
+  const sortedTrades = [...trades].sort((a,b) => a.wts - b.wts);
+
+  let cumPnL = 0;
+  let peakPnL = 0;
+  let maxDD = 0;
+  let dayPnL = 0;
+  let currentDay = null;
+  let consecutiveLosses = 0;
+  let pausedUntil = null;
+  let halfSizeMode = false;
+
+  let executed = 0, skipped = 0;
+  let wins = 0, losses = 0;
+  const dailyPnL = new Map();
+
+  for (const trade of sortedTrades) {
+    const dayStr = new Date(trade.wts * 1000).toISOString().slice(0,10);
+
+    if (dayStr !== currentDay) {
+      currentDay = dayStr;
+      dayPnL = 0;
+      // Note: pause carries over until expired (in case it spans midnight)
+    }
+
+    // Check if paused
+    if (pausedUntil !== null) {
+      if (trade.wts < pausedUntil) {
+        skipped++;
+        continue;
+      } else {
+        pausedUntil = null;
+      }
+    }
+
+    // Determine bet size (full or half)
+    const size = (halfSizeMode && mode === 'D') ? pos / 2 : pos;
+
+    // Execute trade
+    executed++;
+    const won = trade.side === trade.final;
+    const tradePnL = won ? size * (1/trade.price - 1) : -size;
+
+    cumPnL += tradePnL;
+    dayPnL += tradePnL;
+    dailyPnL.set(dayStr, (dailyPnL.get(dayStr) || 0) + tradePnL);
+
+    if (won) {
+      wins++;
+      consecutiveLosses = 0;
+      if (mode === 'D' && halfSizeMode) halfSizeMode = false;
+    } else {
+      losses++;
+      consecutiveLosses++;
+    }
+
+    // Update drawdown tracking
+    if (cumPnL > peakPnL) peakPnL = cumPnL;
+    const currentDD = peakPnL - cumPnL;
+    if (currentDD > maxDD) maxDD = currentDD;
+
+    // Apply stop-loss logic based on mode
+    switch (mode) {
+      case 'A':
+        // No stop-loss — pure baseline
+        break;
+      case 'B':
+        // Daily stop at -$10 (наш поточний)
+        if (dayPnL <= -10) {
+          const endOfDay = Math.floor(trade.wts / 86400) * 86400 + 86400;
+          pausedUntil = endOfDay;
+        }
+        break;
+      case 'C':
+        // Daily stop at -$25 (толерантніший)
+        if (dayPnL <= -25) {
+          const endOfDay = Math.floor(trade.wts / 86400) * 86400 + 86400;
+          pausedUntil = endOfDay;
+        }
+        break;
+      case 'D':
+        // Half-size after 3 consecutive losses
+        if (consecutiveLosses >= 3) {
+          halfSizeMode = true;
+        }
+        break;
+      case 'E':
+        // 30-min cooldown after 2 consecutive losses
+        if (consecutiveLosses >= 2) {
+          pausedUntil = trade.wts + 1800;
+          consecutiveLosses = 0;
+        }
+        break;
+      case 'F':
+        // Trailing -15% от peak
+        if (peakPnL > 5 && (peakPnL - cumPnL) / peakPnL > 0.15) {
+          pausedUntil = trade.wts + 21600; // 6h pause
+        }
+        break;
+    }
+  }
+
+  const dailyValues = Array.from(dailyPnL.values());
+  const worstDay = dailyValues.length ? Math.min(...dailyValues) : 0;
+  const bestDay = dailyValues.length ? Math.max(...dailyValues) : 0;
+  const profitableDays = dailyValues.filter(v => v > 0).length;
+  const totalDays = dailyValues.length;
+
+  return {
+    totalPnL: cumPnL,
+    maxDD,
+    worstDay: Math.abs(Math.min(0, worstDay)),
+    bestDay: Math.max(0, bestDay),
+    executed,
+    skipped,
+    wins,
+    losses,
+    wr: executed > 0 ? wins / executed : 0,
+    profitableDays,
+    totalDays,
+  };
 }
 
-// Helper: copy JSON to clipboard
-function copyParams(btn, params) {
-  navigator.clipboard.writeText(JSON.stringify(params, null, 2));
-  const original = btn.textContent;
-  btn.textContent = '✓ Скопійовано';
-  setTimeout(() => { btn.textContent = original; }, 1500);
-}
+async function stopLossTest(idx) {
+  const r = LAST_KFOPT_RESULTS[idx];
+  if (!r) return;
 
+  const card = document.getElementById('stoploss-test-card');
+  card.style.display = 'block';
+  card.scrollIntoView({behavior:'smooth', block:'start'});
+
+  const content = document.getElementById('stoploss-test-content');
+  content.innerHTML = '<div style="padding:20px;color:#888">Прогоняю 6 stop-loss варіантів на ваших даних...</div>';
+
+  const asset = document.getElementById('asset').value;
+  const tf = document.getElementById('timeframe').value;
+  const pos = +document.getElementById('pos').value;
+
+  await new Promise(r => setTimeout(r, 50));
+
+  const rows = await fetchRows(asset, tf);
+  const trades = process(rows, r.cfg);
+
+  if (trades.length < 50) {
+    content.innerHTML = '<div style="padding:20px;color:#ef4444">Замало трейдів для змістовного stop-loss тесту (' + trades.length + '). Потрібно мінімум 50.</div>';
+    return;
+  }
+
+  const modes = [
+    { id: 'A', label: 'A. Pure', color: '#3b82f6',
+      desc: 'Без жодного stop-loss — baseline, чистий edge стратегії' },
+    { id: 'B', label: 'B. Daily -$10', color: '#eab308',
+      desc: 'Наш поточний — пауза до кінця дня при просадці -$10' },
+    { id: 'C', label: 'C. Daily -$25', color: '#f97316',
+      desc: 'Толерантніший — пауза до кінця дня при просадці -$25' },
+    { id: 'D', label: 'D. Half-size after 3 LOSS', color: '#06b6d4',
+      desc: 'М\'який — після 3 LOSS поспіль ставка зменшується вдвічі (повертається після WIN)' },
+    { id: 'E', label: 'E. Cooldown 30min after 2 LOSS', color: '#22c55e',
+      desc: 'Anti-hot-window — пауза 30хв після 2 LOSS поспіль (захист від adverse selection)' },
+    { id: 'F', label: 'F. Trailing -15%', color: '#a855f7',
+      desc: 'Adaptive — пауза 6 годин якщо просадка від піка > 15%' },
+  ];
+
+  const results = modes.map(m => ({
+    ...m,
+    ...simulateStopLoss(trades, m.id, pos)
+  }));
+
+  // Find best by different criteria
+  const bestPnL = results.reduce((a,b) => b.totalPnL > a.totalPnL ? b : a);
+  const bestRAR = results.reduce((a,b) => {
+    const aR = a.totalPnL / Math.max(1, a.maxDD);
+    const bR = b.totalPnL / Math.max(1, b.maxDD);
+    return bR > aR ? b : a;
+  });
+  const lowestDD = results.reduce((a,b) => b.maxDD < a.maxDD ? b : a);
+
+  // Render
+  let html = `
+    <div style="font-size:14px;margin-bottom:12px;padding:10px;background:#f9fafb;border-radius:6px">
+      <strong>Стратегія:</strong> delta≥${r.cfg.minDelta}% | ${r.cfg.emin}-${r.cfg.emax} | ${r.cfg.tmin}-${r.cfg.tmax}s | ${DIR_LABEL[r.cfg.direction]} |
+      <strong>${trades.length}</strong> total trades | ставка <strong>$${pos}</strong>
+    </div>
+
+    <div style="font-size:13px;margin-bottom:12px;padding:10px;background:#faf5ff;border-radius:6px;border-left:3px solid #7c3aed">
+      <strong>Що показує:</strong> та сама стратегія, але з різними правилами захисту. 
+      Шукаємо що краще — <strong>Best PnL</strong> (максимальний прибуток), 
+      <strong>Best RAR</strong> (Risk-Adjusted Return = PnL/Max Drawdown — стабільність),
+      або <strong>Lowest DD</strong> (найменша просадка).
+    </div>
+
+    <h3 style="margin-top:16px;margin-bottom:8px">📊 Порівняльна таблиця</h3>
+    <div style="overflow-x:auto"><table>
+      <thead><tr>
+        <th>Режим</th>
+        <th>Executed</th>
+        <th>Skipped</th>
+        <th>WR%</th>
+        <th>Total PnL</th>
+        <th>Max DD</th>
+        <th>PnL / DD</th>
+        <th>Worst day</th>
+        <th>Best day</th>
+        <th>Profit days</th>
+      </tr></thead>
+      <tbody>`;
+
+  for (const res of results) {
+    const isBestPnL = res.id === bestPnL.id;
+    const isBestRAR = res.id === bestRAR.id;
+    const isLowestDD = res.id === lowestDD.id;
+    const rowBg = isBestPnL && isBestRAR ? 'background:#f0fdf4' : isBestPnL ? 'background:#fefce8' : '';
+    const pnlCol = res.totalPnL >= 0 ? '#22c55e' : '#ef4444';
+    const ddCol = res.maxDD <= 30 ? '#22c55e' : res.maxDD <= 80 ? '#eab308' : '#ef4444';
+    const rar = res.totalPnL / Math.max(1, res.maxDD);
+    const rarStr = rar.toFixed(2);
+    const rarCol = rar > 2 ? '#22c55e' : rar > 1 ? '#eab308' : '#ef4444';
+    const skippedTxt = res.skipped > 0 ? `<span style="color:#888">${res.skipped}</span>` : '0';
+
+    const badges = [];
+    if (isBestPnL) badges.push('<span style="font-size:9px;background:#22c55e;color:white;padding:1px 4px;border-radius:3px;margin-left:4px">🏆 PnL</span>');
+    if (isBestRAR) badges.push('<span style="font-size:9px;background:#7c3aed;color:white;padding:1px 4px;border-radius:3px;margin-left:4px">⭐ RAR</span>');
+    if (isLowestDD) badges.push('<span style="font-size:9px;background:#3b82f6;color:white;padding:1px 4px;border-radius:3px;margin-left:4px">🛡 DD</span>');
+
+    html += `<tr style="${rowBg}">
+      <td><strong style="color:${res.color}">${res.label}</strong>${badges.join('')}</td>
+      <td>${res.executed} <span style="color:#888;font-size:11px">(${res.wins}W/${res.losses}L)</span></td>
+      <td>${skippedTxt}</td>
+      <td>${(res.wr*100).toFixed(1)}%</td>
+      <td style="color:${pnlCol};font-weight:500">${res.totalPnL>=0?'+':''}$${res.totalPnL.toFixed(2)}</td>
+      <td style="color:${ddCol}">-$${res.maxDD.toFixed(2)}</td>
+      <td style="color:${rarCol};font-weight:500">${rarStr}</td>
+      <td style="color:#ef4444">-$${res.worstDay.toFixed(2)}</td>
+      <td style="color:#22c55e">+$${res.bestDay.toFixed(2)}</td>
+      <td>${res.profitableDays}/${res.totalDays}</td>
+    </tr>`;
+  }
+
+  html += '</tbody></table></div>';
+
+  // Mode descriptions
+  html += '<h3 style="margin-top:20px;margin-bottom:8px">Деталі режимів</h3>';
+  html += '<div style="font-size:13px;line-height:1.8">';
+  for (const m of modes) {
+    html += `<div style="margin-bottom:6px"><strong style="color:${m.color}">${m.label}:</strong> <span style="color:#666">${m.desc}</span></div>`;
+  }
+  html += '</div>';
+
+  // Interpretation
+  const bestPnLval = bestPnL.totalPnL;
+  const bestRARval = bestRAR.totalPnL / Math.max(1, bestRAR.maxDD);
+  const pureRAR = results[0].totalPnL / Math.max(1, results[0].maxDD);
+  const ourCurrent = results[1]; // Mode B
+  const ourCurrentVsBest = bestPnLval - ourCurrent.totalPnL;
+  const ourCurrentVsBestPct = ourCurrent.totalPnL !== 0 ? Math.round(100 * ourCurrentVsBest / Math.abs(ourCurrent.totalPnL)) : 0;
+
+  html += `<div style="margin-top:20px;padding:14px;background:#f9fafb;border-radius:8px;border-left:4px solid #7c3aed">
+    <strong style="font-size:15px">📌 Інтерпретація:</strong>
+    <div style="margin-top:10px;font-size:13px;line-height:1.7">
+      <strong>🏆 Best PnL:</strong> <strong style="color:${bestPnL.color}">${bestPnL.label}</strong> 
+      — <strong>+$${bestPnL.totalPnL.toFixed(2)}</strong> 
+      (PnL/DD = ${(bestPnLval/Math.max(1, bestPnL.maxDD)).toFixed(2)})<br>
+      
+      <strong>⭐ Best Risk-Adjusted:</strong> <strong style="color:${bestRAR.color}">${bestRAR.label}</strong> 
+      — PnL/DD = <strong>${bestRARval.toFixed(2)}</strong> 
+      ($${bestRAR.totalPnL.toFixed(2)} прибуток / $${bestRAR.maxDD.toFixed(2)} max DD)<br>
+      
+      <strong>🛡 Lowest Drawdown:</strong> <strong style="color:${lowestDD.color}">${lowestDD.label}</strong> 
+      — макс просадка лише <strong>-$${lowestDD.maxDD.toFixed(2)}</strong><br><br>
+
+      <strong>Порівняння з нашим поточним (Mode B, daily -$10):</strong><br>
+      <span style="color:#666">Поточний PnL: ${ourCurrent.totalPnL>=0?'+':''}$${ourCurrent.totalPnL.toFixed(2)}, 
+      Max DD: -$${ourCurrent.maxDD.toFixed(2)}</span><br>
+      ${ourCurrent.id === bestPnL.id 
+        ? '<span style="color:#22c55e">✅ Наш поточний режим — Best PnL! Залишаємо як є.</span>'
+        : `<span style="color:${ourCurrentVsBest > 0 ? '#eab308' : '#22c55e'}">
+            ${ourCurrentVsBest > 0 
+              ? `🟡 Перехід на <strong>${bestPnL.label}</strong> дав би <strong>+$${ourCurrentVsBest.toFixed(2)}</strong> більше (${ourCurrentVsBestPct > 0 ? '+' : ''}${ourCurrentVsBestPct}% покращення).`
+              : `✅ Наш поточний кращий за Best PnL на $${Math.abs(ourCurrentVsBest).toFixed(2)}.`
+            }
+          </span>`
+      }
+      <br><br>
+      <strong>Висновок:</strong>
+      ${bestPnL.id === bestRAR.id
+        ? `🎯 Один режим виграє і за PnL і за risk-adjusted — <strong style="color:${bestPnL.color}">${bestPnL.label}</strong>. Це твій кандидат для впровадження.`
+        : `🟡 Best PnL (${bestPnL.label}) і Best RAR (${bestRAR.label}) різні. Якщо тобі важливіша стабільність — обирай Best RAR. Якщо max прибуток і ти готовий до більших drawdowns — Best PnL.`
+      }
+    </div>
+  </div>`;
+
+  content.innerHTML = html;
+}
+// ===============================================
 </script>
 </body>
 </html>
