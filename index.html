@@ -162,9 +162,6 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
   <div class="btn-row" style="margin-top:8px;grid-template-columns:1fr">
     <button id="rolling-wf-btn" onclick="runRollingWalkForward()" style="background:linear-gradient(135deg,#059669 0%,#0891b2 100%);font-weight:600;color:white;padding:14px">🎯 Rolling Walk-Forward + Group Test (чесна валідація)</button>
   </div>
-  <div class="btn-row" style="margin-top:8px;grid-template-columns:1fr">
-    <button id="stability-btn" onclick="runStabilityTest()" style="background:linear-gradient(135deg,#9333ea 0%,#db2777 100%);font-weight:600;color:white;padding:14px">🛡️ Stability Test — топ-10 стратегій через всі блоки (одні параметри)</button>
-  </div>
 </div>
 
 <div id="error-msg" class="error" style="display:none"></div>
@@ -316,25 +313,6 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
       працюють в середньому на test. Якщо група в плюсі — edge є; якщо ні — Top-1 була просто outlier.
     </div>
     <div id="rolling-wf-content"></div>
-  </div>
-</div>
-
-<div id="stability-results" style="display:none">
-  <div class="card">
-    <h2>🛡️ Stability Test — топ-10 стратегій</h2>
-    <div id="stability-info" style="font-size:13px;color:#888;margin-bottom:12px"></div>
-    <div style="background:#f3e8ff;border-left:3px solid #9333ea;padding:10px 12px;font-size:12px;line-height:1.6;margin-bottom:12px;border-radius:0 4px 4px 0">
-      <strong>Що це робить:</strong> кожна стратегія прогоняється з <strong>фіксованими параметрами</strong> через 
-      усі 5 блоків окремо. Це показує <strong>стабільність в часі</strong>: чи стратегія працює в кожен період, 
-      чи "ловить" едж тільки в один момент.
-      <br><br>
-      <strong>Як читати:</strong> "Blocks +" = скільки з 5 блоків в плюсі. <strong>5/5</strong> = стабільний едж.
-      <strong>3/5</strong> = нестабільно. Чим більше "+" — тим надійніше.
-      <br><br>
-      <strong>Сортування:</strong> спочатку за кількістю позитивних блоків, потім за PnL найгіршого блоку
-      (worst-case оптимізація).
-    </div>
-    <div id="stability-content"></div>
   </div>
 </div>
 
@@ -1787,9 +1765,21 @@ async function runKFoldOptimizer(strict) {
   setBtn(false);
 }
 
+
 // ===========================================================
-// ROLLING WALK-FORWARD + GROUP TEST (чесна валідація)
+// ROLLING WALK-FORWARD — топ-10 з ФІКСОВАНИМИ параметрами
 // ===========================================================
+//
+// Логіка:
+//   1. Train = блоки 1-4 (перші 80% даних) → знаходимо топ-10 за score
+//   2. Test = блок 5 (останні 20% — "майбутнє" якого не знали)
+//   3. Кожну з топ-10 тестуємо на блоці 5 з ФІКСОВАНИМИ параметрами
+//   4. Розкладка по всіх блоках 1-5 окремо для довідки
+//   5. Сортування за TRAIN score — як це б працювало в реальності
+//
+// Це чесна симуляція: "вибрали топ-10 в реальності → побачили що зайшло б на майбутньому"
+
+let LAST_RWF_RESULTS = [];
 
 async function runRollingWalkForward() {
   document.getElementById('error-msg').style.display='none';
@@ -1801,7 +1791,8 @@ async function runRollingWalkForward() {
   btn.disabled=true;
   btn.textContent='⏳ Обробка...';
 
-  const NUM_BLOCKS = 5;  // 5 блоків = 4 walk-forward проходи
+  const NUM_BLOCKS = 5;       // 5 блоків: 4 train + 1 test
+  const TRAIN_BLOCKS = 4;     // перші N блоків — train
 
   try {
     const setL = (msg) => {
@@ -1812,307 +1803,22 @@ async function runRollingWalkForward() {
     setL('Завантажую дані...');
     const rows = await fetchRows(asset, tf);
 
-    setL('Підготовка...');
+    setL('Розбиваю на 5 блоків...');
     const blocks = splitRowsIntoBlocks(rows, NUM_BLOCKS);
     if (!blocks) {
-      showErr(`Замало даних для ${NUM_BLOCKS} блоків. Потрібно мінімум ${NUM_BLOCKS * 5} вікон.`);
+      showErr(`Замало даних для ${NUM_BLOCKS} блоків.`);
       btn.disabled=false; btn.textContent='🎯 Rolling Walk-Forward + Group Test (чесна валідація)';
       document.getElementById('loading').style.display='none';
       return;
     }
 
-    // Інформація про блоки
-    const blockInfo = blocks.map((b, i) =>
-      `Блок ${i+1}: ${b.startDate.toISOString().slice(0,10)} → ${b.endDate.toISOString().slice(0,10)} (${b.rows.length} рядків)`
-    ).join(' | ');
+    // Train = блоки 0..TRAIN_BLOCKS-1, Test = блок TRAIN_BLOCKS
+    const trainRows = blocks.slice(0, TRAIN_BLOCKS).flatMap(b => b.rows);
+    const testBlock = blocks[TRAIN_BLOCKS];
 
-    document.getElementById('rolling-wf-info').textContent =
-      `${asset.toUpperCase()} ${tf} | ставка $${pos} | ${rows.length} рядків розбито на ${NUM_BLOCKS} блоків`;
-
-    // Генеруємо комбінації (як у K-fold)
-    const combos = [];
-    for (const delta of KFOPT_GRID.delta)
-      for (const emin of KFOPT_GRID.emin)
-        for (const emax of KFOPT_GRID.emax)
-          if (emin < emax)
-            for (const tmin of KFOPT_GRID.tmin)
-              for (const tmax of KFOPT_GRID.tmax)
-                if (tmin < tmax)
-                  for (const direction of KFOPT_GRID.direction) {
-                    combos.push({
-                      minDelta: delta, emin, emax, tmin, tmax, direction,
-                      limit: 999999, useRegime: false, regimeMap: null,
-                    });
-                  }
-
-    // Для кожного walk-forward проходу:
-    //   TRAIN = блоки [0..i], TEST = блок i+1
-    //   Це робиться (NUM_BLOCKS - 1) разів
-    const wfResults = [];
-    const startTime = performance.now();
-
-    for (let fold = 0; fold < NUM_BLOCKS - 1; fold++) {
-      // Train: всі блоки до fold+1 (тобто 0..fold включно)
-      const trainRows = blocks.slice(0, fold + 1).flatMap(b => b.rows);
-      const testBlock = blocks[fold + 1];
-      const testRows = testBlock.rows;
-
-      setL(`Прохід ${fold+1}/${NUM_BLOCKS-1}: train ${trainRows.length} → test ${testRows.length}. Шукаю Top-1...`);
-      await new Promise(r => setTimeout(r, 30));
-
-      // На train знаходимо найкращі стратегії
-      // (використовуємо runOneKFoldBacktest для consistency з K-fold optimizer)
-      const trainResults = [];
-      for (let i = 0; i < combos.length; i++) {
-        const res = runOneKFoldBacktest(trainRows, combos[i], pos);
-        if (res) trainResults.push(res);
-
-        if (i % 100 === 0) {
-          setL(`Прохід ${fold+1}/${NUM_BLOCKS-1}: train (${Math.round(100*i/combos.length)}%) | valid: ${trainResults.length}`);
-          await new Promise(r => setTimeout(r, 0));
-        }
-      }
-
-      if (trainResults.length === 0) {
-        wfResults.push({ fold, trainRows: trainRows.length, testRows: testRows.length, error: 'no valid strategies in train' });
-        continue;
-      }
-
-      // Sort by score
-      trainResults.sort((a,b) => b.score - a.score);
-
-      // ===== ТОП-1 =====
-      const top1 = trainResults[0];
-      const top1Trades = process(testRows, top1.cfg);
-      const top1Stats = top1Trades.length ? stats(top1Trades, pos) : null;
-
-      // ===== GROUP TEST: топ-20% =====
-      const top20pctCount = Math.max(5, Math.floor(trainResults.length * 0.20));
-      const top20pct = trainResults.slice(0, top20pctCount);
-
-      // Тестуємо кожну стратегію з топ-20% на test
-      const groupTestResults = [];
-      for (const r of top20pct) {
-        const trades = process(testRows, r.cfg);
-        if (trades.length > 0) {
-          groupTestResults.push({
-            cfg: r.cfg,
-            stats: stats(trades, pos)
-          });
-        }
-      }
-
-      // Зведення групи
-      const groupPnLs = groupTestResults.map(g => g.stats.pnl);
-      const groupWRs  = groupTestResults.map(g => g.stats.wr);
-      const groupAvgPnL = groupPnLs.length ? groupPnLs.reduce((a,b)=>a+b, 0) / groupPnLs.length : 0;
-      const groupMedianPnL = groupPnLs.length ? [...groupPnLs].sort((a,b)=>a-b)[Math.floor(groupPnLs.length/2)] : 0;
-      const groupAvgWR = groupWRs.length ? groupWRs.reduce((a,b)=>a+b, 0) / groupWRs.length : 0;
-      const groupPositive = groupPnLs.filter(p => p > 0).length;
-      const groupTotal = groupPnLs.length;
-      const groupPositivePct = groupTotal ? (100 * groupPositive / groupTotal) : 0;
-
-      wfResults.push({
-        fold,
-        trainRows: trainRows.length,
-        trainBlocks: fold + 1,
-        testRows: testRows.length,
-        testBlock: testBlock,
-        // Top-1
-        top1Cfg: top1.cfg,
-        top1TrainStats: { wr: top1.totalWR, pnl: top1.totalPnL, trades: top1.totalTrades, score: top1.score },
-        top1TestStats: top1Stats,
-        // Group
-        groupSize: top20pctCount,
-        groupTestedCount: groupTotal,
-        groupAvgPnL,
-        groupMedianPnL,
-        groupAvgWR,
-        groupPositive,
-        groupPositivePct,
-      });
-    }
-
-    const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
-
-    // ===== РЕНДЕР РЕЗУЛЬТАТІВ =====
-    renderRollingWFResults(wfResults, blocks, elapsed, asset, tf, pos);
-
-    document.getElementById('loading').style.display='none';
-    document.getElementById('rolling-wf-results').style.display='block';
-
-  } catch (e) {
-    showErr('Помилка: ' + e.message);
-    console.error(e);
-  }
-  btn.disabled=false;
-  btn.textContent='🎯 Rolling Walk-Forward + Group Test (чесна валідація)';
-}
-
-function renderRollingWFResults(wfResults, blocks, elapsed, asset, tf, pos) {
-  const content = document.getElementById('rolling-wf-content');
-
-  // Підсумок
-  const validResults = wfResults.filter(r => !r.error && r.top1TestStats);
-  const positiveTop1 = validResults.filter(r => r.top1TestStats.pnl > 0).length;
-  const positiveGroup = validResults.filter(r => r.groupAvgPnL > 0).length;
-  const totalFolds = validResults.length;
-
-  let verdict, verdictColor, verdictText;
-  if (positiveTop1 === totalFolds && positiveGroup === totalFolds) {
-    verdict = '✅';
-    verdictColor = '#22c55e';
-    verdictText = 'РЕАЛЬНИЙ EDGE — стратегія прибуткова в усіх out-of-sample тестах (і Top-1 і група)';
-  } else if (positiveTop1 >= Math.ceil(totalFolds * 0.75) && positiveGroup >= Math.ceil(totalFolds * 0.5)) {
-    verdict = '🟡';
-    verdictColor = '#eab308';
-    verdictText = `СЛАБКИЙ EDGE — ${positiveTop1}/${totalFolds} Top-1 позитивні, ${positiveGroup}/${totalFolds} груп. Обережно з торгівлею.`;
-  } else {
-    verdict = '❌';
-    verdictColor = '#ef4444';
-    verdictText = `НЕМАЄ EDGE — тільки ${positiveTop1}/${totalFolds} Top-1 і ${positiveGroup}/${totalFolds} груп позитивні. Backtest "знаходить" хибні закономірності.`;
-  }
-
-  let html = `
-    <div style="background:${verdictColor}15;border-left:4px solid ${verdictColor};padding:14px 16px;margin-bottom:16px;border-radius:0 4px 4px 0">
-      <div style="font-size:24px;margin-bottom:4px">${verdict} <strong style="color:${verdictColor}">${verdictText.split(' — ')[0]}</strong></div>
-      <div style="font-size:13px;color:#555;margin-top:6px">${verdictText.split(' — ').slice(1).join(' — ')}</div>
-    </div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:20px">
-      <div style="background:#f3f4f6;padding:12px;border-radius:6px;text-align:center">
-        <div style="font-size:11px;color:#666;text-transform:uppercase">Folds</div>
-        <div style="font-size:24px;font-weight:600">${totalFolds}</div>
-      </div>
-      <div style="background:#f3f4f6;padding:12px;border-radius:6px;text-align:center">
-        <div style="font-size:11px;color:#666;text-transform:uppercase">Top-1 в плюсі</div>
-        <div style="font-size:24px;font-weight:600;color:${positiveTop1 === totalFolds ? '#22c55e' : positiveTop1 >= totalFolds * 0.75 ? '#eab308' : '#ef4444'}">${positiveTop1}/${totalFolds}</div>
-      </div>
-      <div style="background:#f3f4f6;padding:12px;border-radius:6px;text-align:center">
-        <div style="font-size:11px;color:#666;text-transform:uppercase">Група в плюсі</div>
-        <div style="font-size:24px;font-weight:600;color:${positiveGroup === totalFolds ? '#22c55e' : positiveGroup >= totalFolds * 0.5 ? '#eab308' : '#ef4444'}">${positiveGroup}/${totalFolds}</div>
-      </div>
-      <div style="background:#f3f4f6;padding:12px;border-radius:6px;text-align:center">
-        <div style="font-size:11px;color:#666;text-transform:uppercase">Час</div>
-        <div style="font-size:24px;font-weight:600">${elapsed}s</div>
-      </div>
-    </div>
-  `;
-
-  // Таблиця по фолдах
-  html += `
-    <h3 style="margin:16px 0 8px 0">📊 Результати по проходам</h3>
-    <div style="overflow-x:auto">
-    <table>
-      <thead>
-        <tr>
-          <th>Прохід</th>
-          <th>Train блоки</th>
-          <th>Test блок</th>
-          <th>Top-1 параметри</th>
-          <th>Train WR/PnL</th>
-          <th>Test трейдів</th>
-          <th>Test WR</th>
-          <th>Test PnL (Top-1)</th>
-          <th>Group avg PnL</th>
-          <th>Group % +</th>
-          <th>Verdict</th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
-
-  wfResults.forEach((r, i) => {
-    if (r.error) {
-      html += `<tr><td>${i+1}</td><td colspan="10" style="color:#ef4444">Помилка: ${r.error}</td></tr>`;
-      return;
-    }
-
-    const top1Pnl = r.top1TestStats ? r.top1TestStats.pnl : null;
-    const top1WR = r.top1TestStats ? r.top1TestStats.wr : null;
-    const top1Trades = r.top1TestStats ? r.top1TestStats.n : 0;
-
-    const top1Color = top1Pnl === null ? '#888' : top1Pnl > 0 ? '#22c55e' : '#ef4444';
-    const groupColor = r.groupAvgPnL > 0 ? '#22c55e' : '#ef4444';
-    const groupPctColor = r.groupPositivePct >= 60 ? '#22c55e' : r.groupPositivePct >= 40 ? '#eab308' : '#ef4444';
-
-    let foldVerdict;
-    if (top1Pnl > 0 && r.groupAvgPnL > 0) foldVerdict = '<span style="color:#22c55e">✅ OK</span>';
-    else if (top1Pnl > 0 || r.groupAvgPnL > 0) foldVerdict = '<span style="color:#eab308">🟡 mixed</span>';
-    else foldVerdict = '<span style="color:#ef4444">❌ fail</span>';
-
-    const cfgStr = `δ≥${r.top1Cfg.minDelta}% | ${r.top1Cfg.emin}-${r.top1Cfg.emax} | ${r.top1Cfg.tmin}-${r.top1Cfg.tmax}s | ${r.top1Cfg.direction}`;
-
-    html += `
-      <tr>
-        <td><strong>${i+1}</strong></td>
-        <td>${r.trainBlocks}/5 (${r.trainRows} рядків)</td>
-        <td>Блок ${r.fold + 2}<br><span style="font-size:11px;color:#666">${r.testBlock.startDate.toISOString().slice(5,10)}–${r.testBlock.endDate.toISOString().slice(5,10)}</span></td>
-        <td style="font-size:11px;font-family:monospace">${cfgStr}</td>
-        <td>${(r.top1TrainStats.wr*100).toFixed(1)}% / +$${r.top1TrainStats.pnl.toFixed(2)}</td>
-        <td>${top1Trades}</td>
-        <td>${top1WR !== null ? (top1WR*100).toFixed(1)+'%' : '—'}</td>
-        <td style="color:${top1Color};font-weight:600">${top1Pnl !== null ? (top1Pnl >= 0 ? '+' : '') + '$' + top1Pnl.toFixed(2) : '—'}</td>
-        <td style="color:${groupColor};font-weight:500">${r.groupAvgPnL >= 0 ? '+' : ''}$${r.groupAvgPnL.toFixed(2)}<br><span style="font-size:10px;color:#888">(${r.groupTestedCount} стратегій)</span></td>
-        <td style="color:${groupPctColor};font-weight:500">${r.groupPositivePct.toFixed(0)}%</td>
-        <td>${foldVerdict}</td>
-      </tr>
-    `;
-  });
-
-  html += `</tbody></table></div>`;
-
-  // Інтерпретація
-  html += `
-    <div style="margin-top:20px;padding:14px;background:#f9fafb;border-radius:6px;font-size:13px;line-height:1.7">
-      <strong>📖 Як читати:</strong><br>
-      • <strong>Прохід 1</strong>: train = блок 1 (20% даних), test = блок 2 (наступні 20%)<br>
-      • <strong>Прохід 2</strong>: train = блоки 1+2 (40%), test = блок 3<br>
-      • <strong>Прохід 3</strong>: train = блоки 1+2+3 (60%), test = блок 4<br>
-      • <strong>Прохід 4</strong>: train = блоки 1+2+3+4 (80%), test = блок 5 (останні 20%)<br>
-      <br>
-      <strong>Test PnL (Top-1)</strong> — як працює <em>конкретна</em> найкраща стратегія з train на нових даних.<br>
-      <strong>Group avg PnL</strong> — середній PnL топ-20% стратегій. Якщо тільки Top-1 в плюсі а група в мінусі — це outlier.<br>
-      <strong>Group % +</strong> — скільки % стратегій з групи позитивні на test. <strong>≥60%</strong> = справжній edge.
-    </div>
-  `;
-
-  content.innerHTML = html;
-}
-
-
-// ===========================================================
-// STABILITY TEST — топ-10 стратегій через ВСІ блоки з фіксованими параметрами
-// ===========================================================
-
-let LAST_STABILITY_RESULTS = [];
-
-async function runStabilityTest() {
-  document.getElementById('error-msg').style.display='none';
-  document.getElementById('info-msg').style.display='none';
-  const asset=document.getElementById('asset').value;
-  const tf=document.getElementById('timeframe').value;
-  const pos=+document.getElementById('pos').value;
-  const btn=document.getElementById('stability-btn');
-  btn.disabled=true;
-  btn.textContent='⏳ Обробка...';
-
-  const NUM_BLOCKS = 5;
-
-  try {
-    const setL = (msg) => {
-      document.getElementById('loading').style.display='block';
-      document.getElementById('loading').textContent = msg;
-    };
-
-    setL('Завантажую дані...');
-    const rows = await fetchRows(asset, tf);
-
-    setL('Розбиваю на блоки...');
-    const blocks = splitRowsIntoBlocks(rows, NUM_BLOCKS);
-    if (!blocks) {
-      showErr(`Замало даних для ${NUM_BLOCKS} блоків.`);
-      btn.disabled=false; btn.textContent='🛡️ Stability Test — топ-10 стратегій через всі блоки (одні параметри)';
+    if (testBlock.rows.length === 0) {
+      showErr('Тестовий блок пустий. Збільш ліміт даних.');
+      btn.disabled=false; btn.textContent='🎯 Rolling Walk-Forward + Group Test (чесна валідація)';
       document.getElementById('loading').style.display='none';
       return;
     }
@@ -2134,111 +1840,176 @@ async function runStabilityTest() {
                   }
 
     const startTime = performance.now();
-    const allResults = [];
 
-    // Для КОЖНОЇ комбінації — прогоняємо через КОЖЕН блок окремо
+    // ===== ЕТАП 1: ранжуємо комбінації за TRAIN метрикою =====
+    setL(`Прогоняю ${combos.length} комбінацій на train (блоки 1-${TRAIN_BLOCKS})...`);
+    await new Promise(r => setTimeout(r, 30));
+
+    const trainResults = [];
     for (let i = 0; i < combos.length; i++) {
-      const cfg = combos[i];
-      const blockStats = [];
-
-      for (const b of blocks) {
-        const trades = process(b.rows, cfg);
-        if (trades.length === 0) {
-          blockStats.push({ trades: 0, wr: 0, pnl: 0, valid: false });
-        } else {
-          const s = stats(trades, pos);
-          blockStats.push({
-            trades: s.n,
-            wr: s.wr,
-            pnl: s.pnl,
-            valid: true
-          });
-        }
+      const res = runOneKFoldBacktest(trainRows, combos[i], pos);
+      if (res && res.totalTrades >= 100) {  // мін трейдів для значущості
+        trainResults.push(res);
       }
-
-      // Метрики стабільності
-      const validBlocks = blockStats.filter(b => b.valid);
-      if (validBlocks.length < NUM_BLOCKS) continue;  // пропускаємо якщо хоч один блок не має трейдів
-
-      const blocksPositive = blockStats.filter(b => b.pnl > 0).length;
-      const totalTrades = blockStats.reduce((sum, b) => sum + b.trades, 0);
-      const totalPnL = blockStats.reduce((sum, b) => sum + b.pnl, 0);
-      const minBlockPnL = Math.min(...blockStats.map(b => b.pnl));
-      const avgWR = blockStats.reduce((sum, b) => sum + b.wr * b.trades, 0) / totalTrades;
-
-      // Фільтр: мінімум трейдів
-      if (totalTrades < 100) continue;
-
-      allResults.push({
-        cfg,
-        blockStats,
-        blocksPositive,
-        totalTrades,
-        totalPnL,
-        minBlockPnL,
-        avgWR
-      });
-
       if (i % 100 === 0) {
-        setL(`Обробка комбінацій (${Math.round(100 * i / combos.length)}%) | стабільних: ${allResults.length}`);
+        setL(`Train (${Math.round(100*i/combos.length)}%) | пройшли filter: ${trainResults.length}`);
         await new Promise(r => setTimeout(r, 0));
       }
     }
 
-    // Сортування: спочатку blocksPositive desc, потім minBlockPnL desc (worst-case оптимізація)
-    allResults.sort((a, b) => {
-      if (b.blocksPositive !== a.blocksPositive) return b.blocksPositive - a.blocksPositive;
-      return b.minBlockPnL - a.minBlockPnL;
-    });
+    if (trainResults.length === 0) {
+      showErr('Жодна стратегія не пройшла мінімум 100 трейдів на train.');
+      btn.disabled=false; btn.textContent='🎯 Rolling Walk-Forward + Group Test (чесна валідація)';
+      document.getElementById('loading').style.display='none';
+      return;
+    }
 
-    const top10 = allResults.slice(0, 10);
-    LAST_STABILITY_RESULTS = top10;
+    // Сортуємо за train score (як вибирали б в реальності)
+    trainResults.sort((a, b) => b.score - a.score);
+    const top10 = trainResults.slice(0, 10);
 
+    // ===== ЕТАП 2: для кожної з топ-10 — тест на ВСІХ блоках окремо (фіксовані параметри) =====
+    setL('Тестую топ-10 на всіх блоках з фіксованими параметрами...');
+    await new Promise(r => setTimeout(r, 30));
+
+    const finalResults = [];
+    for (const t of top10) {
+      const blockStats = [];
+      for (const b of blocks) {
+        const trades = process(b.rows, t.cfg);
+        if (trades.length === 0) {
+          blockStats.push({ trades: 0, wr: 0, pnl: 0, valid: false });
+        } else {
+          const s = stats(trades, pos);
+          blockStats.push({ trades: s.n, wr: s.wr, pnl: s.pnl, valid: true });
+        }
+      }
+
+      // Окремо: статистика на test block (блок 5)
+      const testStats = blockStats[TRAIN_BLOCKS];
+
+      const blocksPositive = blockStats.filter(b => b.pnl > 0).length;
+      const minBlockPnL = Math.min(...blockStats.map(b => b.pnl));
+
+      finalResults.push({
+        cfg: t.cfg,
+        trainScore: t.score,
+        trainStats: { trades: t.totalTrades, wr: t.totalWR, pnl: t.totalPnL },
+        testStats,                         // блок 5 — out-of-sample
+        blockStats,                        // всі 5 блоків окремо
+        blocksPositive,
+        minBlockPnL,
+      });
+    }
+
+    LAST_RWF_RESULTS = finalResults;
     const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
 
-    document.getElementById('stability-info').textContent =
-      `${asset.toUpperCase()} ${tf} | ставка $${pos} | перебрано ${combos.length} комбінацій | пройшли мінімум (100+ трейдів × 5 блоків): ${allResults.length} | час: ${elapsed}s`;
+    // Інфо рядок
+    document.getElementById('rolling-wf-info').textContent =
+      `${asset.toUpperCase()} ${tf} | ставка $${pos} | перебрано ${combos.length} комбінацій | пройшли мінімум: ${trainResults.length} | час: ${elapsed}s`;
 
-    renderStabilityResults(top10, blocks);
+    renderRollingWFResults(finalResults, blocks, TRAIN_BLOCKS);
 
     document.getElementById('loading').style.display='none';
-    document.getElementById('stability-results').style.display='block';
+    document.getElementById('rolling-wf-results').style.display='block';
 
   } catch (e) {
     showErr('Помилка: ' + e.message);
     console.error(e);
   }
   btn.disabled=false;
-  btn.textContent='🛡️ Stability Test — топ-10 стратегій через всі блоки (одні параметри)';
+  btn.textContent='🎯 Rolling Walk-Forward + Group Test (чесна валідація)';
 }
 
-function renderStabilityResults(top10, blocks) {
-  const content = document.getElementById('stability-content');
 
-  if (top10.length === 0) {
-    content.innerHTML = `<div style="text-align:center;color:#888;padding:20px">
-      Жодна стратегія не дала 100+ трейдів в кожному з 5 блоків. Можливо мало даних.
-    </div>`;
+function renderRollingWFResults(results, blocks, trainBlockCount) {
+  const content = document.getElementById('rolling-wf-content');
+
+  if (results.length === 0) {
+    content.innerHTML = `<div style="text-align:center;color:#888;padding:20px">Немає стратегій що пройшли.</div>`;
     return;
   }
 
-  // Заголовки блоків (з датами)
-  const blockHeaders = blocks.map((b, i) =>
-    `<th><div style="font-size:11px">Блок ${i+1}</div><div style="font-size:10px;color:#888;font-weight:400">${b.startDate.toISOString().slice(5,10)}–${b.endDate.toISOString().slice(5,10)}</div></th>`
-  ).join('');
+  // Підсумок
+  const top1 = results[0];
+  const top1TestPositive = top1.testStats.pnl > 0;
+  const passingTest = results.filter(r => r.testStats.pnl > 0).length;
+  const passing5of5 = results.filter(r => r.blocksPositive === 5).length;
+  const passing4of5 = results.filter(r => r.blocksPositive === 4).length;
+  const passing3of5 = results.filter(r => r.blocksPositive === 3).length;
+  const passing2of5 = results.filter(r => r.blocksPositive === 2).length;
+
+  let verdict, vColor, vText;
+  if (top1TestPositive && passing5of5 >= 5) {
+    verdict = '✅'; vColor = '#22c55e';
+    vText = 'СИЛЬНИЙ EDGE — Top-1 проходить test, і більшість топ-10 стабільні 5/5';
+  } else if (top1TestPositive && (passing5of5 >= 3 || passing4of5 >= 5)) {
+    verdict = '🟡'; vColor = '#eab308';
+    vText = 'СЕРЕДНІЙ EDGE — Top-1 пройшов test, але стабільність неідеальна';
+  } else if (passingTest >= 5) {
+    verdict = '🟠'; vColor = '#f59e0b';
+    vText = `СЛАБКИЙ EDGE — ${passingTest}/10 пройшли test, але Top-1 (за score) ${top1TestPositive ? 'пройшов' : 'провалив'}`;
+  } else {
+    verdict = '❌'; vColor = '#ef4444';
+    vText = `НЕМАЄ EDGE — лише ${passingTest}/10 пройшли test. Едж знайдений на train не повторюється`;
+  }
+
+  // Header заголовки блоків
+  const blockHeaders = blocks.map((b, i) => {
+    const isTest = i === trainBlockCount;
+    return `<th style="${isTest ? 'background:#fef3c7' : ''}">
+      <div style="font-size:11px">${isTest ? '🎯 ТEST ' : 'Train '}Б${i+1}</div>
+      <div style="font-size:10px;color:#888;font-weight:400">${b.startDate.toISOString().slice(5,10)}–${b.endDate.toISOString().slice(5,10)}</div>
+    </th>`;
+  }).join('');
 
   let html = `
+    <div style="background:${vColor}15;border-left:4px solid ${vColor};padding:14px 16px;margin-bottom:16px;border-radius:0 4px 4px 0">
+      <div style="font-size:20px;margin-bottom:4px">${verdict} <strong style="color:${vColor}">${vText.split(' — ')[0]}</strong></div>
+      <div style="font-size:13px;color:#555;margin-top:6px">${vText.split(' — ').slice(1).join(' — ')}</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:8px;margin-bottom:20px">
+      <div style="background:#f3f4f6;padding:10px;border-radius:6px;text-align:center">
+        <div style="font-size:10px;color:#666">Top-10 пройшли TEST</div>
+        <div style="font-size:20px;font-weight:600;color:${passingTest >= 7 ? '#22c55e' : passingTest >= 4 ? '#eab308' : '#ef4444'}">${passingTest}/10</div>
+      </div>
+      <div style="background:#dcfce7;padding:10px;border-radius:6px;text-align:center">
+        <div style="font-size:10px;color:#15803d">5/5 блоків</div>
+        <div style="font-size:20px;font-weight:600;color:#15803d">${passing5of5}</div>
+      </div>
+      <div style="background:#fef3c7;padding:10px;border-radius:6px;text-align:center">
+        <div style="font-size:10px;color:#a16207">4/5 блоків</div>
+        <div style="font-size:20px;font-weight:600;color:#a16207">${passing4of5}</div>
+      </div>
+      <div style="background:#fed7aa;padding:10px;border-radius:6px;text-align:center">
+        <div style="font-size:10px;color:#9a3412">3/5 блоків</div>
+        <div style="font-size:20px;font-weight:600;color:#9a3412">${passing3of5}</div>
+      </div>
+      <div style="background:#fecaca;padding:10px;border-radius:6px;text-align:center">
+        <div style="font-size:10px;color:#991b1b">2/5 та менше</div>
+        <div style="font-size:20px;font-weight:600;color:#991b1b">${results.length - passing5of5 - passing4of5 - passing3of5}</div>
+      </div>
+    </div>
+
+    <div style="background:#eff6ff;border-left:3px solid #3b82f6;padding:10px 12px;font-size:12px;line-height:1.6;margin-bottom:12px;border-radius:0 4px 4px 0">
+      <strong>Як працює:</strong> Train = блоки 1-4 (перші 80% даних). На них шукаємо <strong>топ-10</strong> стратегій за train score.
+      <strong>Test = блок 5</strong> (останні 20% — "майбутнє" якого train не бачив). Параметри <strong>фіксовані</strong>.
+      <br><strong>Test PnL</strong> = реальний результат стратегії на новому періоді. Це **єдина** чесна перевірка.
+      <br>Розкладка по блоках 1-4 — для довідки (на цих даних стратегія була "вивчена").
+    </div>
+
     <div style="overflow-x:auto">
     <table>
       <thead>
         <tr>
           <th>#</th>
           <th>Параметри</th>
+          <th>Train Score</th>
+          <th>Test PnL<br><span style="font-size:10px;font-weight:400;color:#888">(блок 5)</span></th>
           <th>Blocks +</th>
-          <th>Total trades</th>
-          <th>Avg WR</th>
-          <th>Total PnL</th>
-          <th>Worst block</th>
+          <th>Worst</th>
           ${blockHeaders}
           <th>Дії</th>
         </tr>
@@ -2246,82 +2017,71 @@ function renderStabilityResults(top10, blocks) {
       <tbody>
   `;
 
-  top10.forEach((r, idx) => {
+  results.forEach((r, idx) => {
+    const testPnL = r.testStats.pnl;
+    const testColor = testPnL > 0 ? '#22c55e' : '#ef4444';
     const blocksPosColor = r.blocksPositive === 5 ? '#22c55e' :
                           r.blocksPositive === 4 ? '#84cc16' :
                           r.blocksPositive === 3 ? '#eab308' :
                           r.blocksPositive === 2 ? '#f59e0b' : '#ef4444';
-    const totalPnLColor = r.totalPnL > 0 ? '#22c55e' : '#ef4444';
-    const minPnLColor = r.minBlockPnL > 0 ? '#22c55e' : '#ef4444';
+    const worstColor = r.minBlockPnL > 0 ? '#22c55e' : '#ef4444';
 
     const cfgStr = `δ≥${r.cfg.minDelta}% | ${r.cfg.emin}-${r.cfg.emax} | ${r.cfg.tmin}-${r.cfg.tmax}s | ${r.cfg.direction}`;
 
-    // Блок-кольори
-    const blockCells = r.blockStats.map(bs => {
+    const blockCells = r.blockStats.map((bs, bi) => {
       const c = bs.pnl > 0 ? '#22c55e' : '#ef4444';
       const sign = bs.pnl >= 0 ? '+' : '';
-      return `<td style="color:${c};font-weight:500;font-size:12px;text-align:center">
+      const isTest = bi === trainBlockCount;
+      const bg = isTest ? 'background:#fef3c7;' : '';
+      return `<td style="${bg}color:${c};font-weight:500;font-size:12px;text-align:center">
         <div>${sign}$${bs.pnl.toFixed(2)}</div>
         <div style="font-size:10px;color:#888;font-weight:400">${(bs.wr*100).toFixed(0)}% / ${bs.trades}</div>
       </td>`;
     }).join('');
 
+    let rowVerdict = '';
+    if (testPnL > 0 && r.blocksPositive === 5) rowVerdict = '<span style="color:#22c55e">✅ 5/5</span>';
+    else if (testPnL > 0 && r.blocksPositive >= 4) rowVerdict = '<span style="color:#84cc16">✅ pass</span>';
+    else if (testPnL > 0) rowVerdict = '<span style="color:#eab308">🟡 test OK</span>';
+    else rowVerdict = '<span style="color:#ef4444">❌ test fail</span>';
+
     html += `
       <tr>
         <td><strong>${idx + 1}</strong></td>
-        <td style="font-family:monospace;font-size:11px;max-width:280px">${cfgStr}</td>
+        <td style="font-family:monospace;font-size:11px;max-width:240px">${cfgStr}</td>
+        <td style="text-align:center;font-weight:600">${r.trainScore}</td>
+        <td style="background:#fef3c7;color:${testColor};font-weight:700;text-align:center">${testPnL >= 0 ? '+' : ''}$${testPnL.toFixed(2)}<br><span style="font-size:10px;color:#888;font-weight:400">${(r.testStats.wr*100).toFixed(0)}% / ${r.testStats.trades}</span></td>
         <td style="text-align:center;font-weight:700;font-size:18px;color:${blocksPosColor}">${r.blocksPositive}/5</td>
-        <td style="text-align:center">${r.totalTrades}</td>
-        <td style="text-align:center">${(r.avgWR * 100).toFixed(1)}%</td>
-        <td style="color:${totalPnLColor};font-weight:600;text-align:center">${r.totalPnL >= 0 ? '+' : ''}$${r.totalPnL.toFixed(2)}</td>
-        <td style="color:${minPnLColor};font-weight:500;text-align:center">${r.minBlockPnL >= 0 ? '+' : ''}$${r.minBlockPnL.toFixed(2)}</td>
+        <td style="color:${worstColor};font-weight:500;text-align:center">${r.minBlockPnL >= 0 ? '+' : ''}$${r.minBlockPnL.toFixed(2)}</td>
         ${blockCells}
-        <td><button onclick="useStabilityStrategy(${idx})" style="padding:6px 10px;font-size:11px;background:#9333ea;color:white;border:none;border-radius:4px;cursor:pointer;white-space:nowrap">Use</button></td>
+        <td><button onclick="useRWFStrategy(${idx})" style="padding:6px 10px;font-size:11px;background:#059669;color:white;border:none;border-radius:4px;cursor:pointer;white-space:nowrap">Use</button></td>
       </tr>
     `;
   });
 
   html += `</tbody></table></div>`;
 
-  // Інтерпретація
-  const top1 = top10[0];
-  let verdict, vColor;
-  if (top1.blocksPositive === 5) {
-    verdict = '✅ Найкраща стратегія в плюсі в УСІХ 5 блоках — справді стабільний едж';
-    vColor = '#22c55e';
-  } else if (top1.blocksPositive === 4) {
-    verdict = '🟡 Найкраща стратегія в плюсі в 4/5 блоків — добре, але один поганий період є';
-    vColor = '#eab308';
-  } else if (top1.blocksPositive === 3) {
-    verdict = '🟠 Найкраща стратегія в плюсі тільки 3/5 — нестабільний едж';
-    vColor = '#f59e0b';
-  } else {
-    verdict = '❌ Жодна стратегія не показала стабільність — едж під сумнівом';
-    vColor = '#ef4444';
-  }
-
   html += `
-    <div style="margin-top:20px;padding:14px;background:${vColor}15;border-left:4px solid ${vColor};border-radius:0 4px 4px 0">
-      <strong style="color:${vColor};font-size:14px">${verdict}</strong>
-    </div>
     <div style="margin-top:16px;padding:14px;background:#f9fafb;border-radius:6px;font-size:13px;line-height:1.7">
       <strong>📖 Як читати:</strong><br>
-      <strong>"Blocks +"</strong> = з 5 послідовних періодів у скількох стратегія в плюсі. <strong>5/5</strong> = ідеально стабільна.<br>
-      <strong>"Worst block"</strong> = найгірший PnL з 5 блоків. Якщо позитивний — стратегія стійка.<br>
-      <strong>Кожна клітинка</strong> блоку: <strong>PnL / WR% / трейдів</strong>.<br>
+      <strong>Train Score</strong> — рейтинг стратегії на блоках 1-4. Чим вище — тим краще "виглядала" на історичних даних.<br>
+      <strong>🎯 Test PnL (блок 5)</strong> — реальний результат на даних що train не бачив. <strong>Це справжній валідатор.</strong><br>
+      <strong>Blocks +</strong> — у скількох з 5 блоків стратегія в плюсі (включаючи train і test).<br>
+      <strong>Worst</strong> — найгірший блок (worst-case).<br>
       <br>
-      <strong>Сортування:</strong> спочатку за кількістю позитивних блоків (більше = краще),
-      потім за PnL найгіршого блоку (worst-case).<br>
+      <strong>Сортування</strong> за train score — як ти б вибрав стратегію в реальності.
+      Якщо Top-1 за score має негативний Test PnL — backtest не передбачає live результат.<br>
       <br>
-      Натисни <strong>"Use"</strong> щоб завантажити параметри стратегії в фільтри зверху.
+      <strong>Кожна клітинка</strong> блоку: <strong>PnL / WR% / трейдів</strong>. Test блок виділено жовтим.
     </div>
   `;
 
   content.innerHTML = html;
 }
 
-function useStabilityStrategy(idx) {
-  const r = LAST_STABILITY_RESULTS[idx];
+
+function useRWFStrategy(idx) {
+  const r = LAST_RWF_RESULTS[idx];
   if (!r) return;
   document.getElementById('emin').value = r.cfg.emin;
   document.getElementById('emax').value = r.cfg.emax;
@@ -2334,7 +2094,7 @@ function useStabilityStrategy(idx) {
     const ev = new Event('input', {bubbles:true});
     if (el) el.dispatchEvent(ev);
   });
-  alert(`Параметри завантажено: delta≥${r.cfg.minDelta}%, ${r.cfg.emin}-${r.cfg.emax}, ${r.cfg.tmin}-${r.cfg.tmax}s, ${DIR_LABEL[r.cfg.direction]}.\nBlocks +: ${r.blocksPositive}/5 | Worst block: $${r.minBlockPnL.toFixed(2)}`);
+  alert(`Параметри завантажено: delta≥${r.cfg.minDelta}%, ${r.cfg.emin}-${r.cfg.emax}, ${r.cfg.tmin}-${r.cfg.tmax}s, ${DIR_LABEL[r.cfg.direction]}.\nTrain Score: ${r.trainScore} | Test PnL: $${r.testStats.pnl.toFixed(2)} | Blocks +: ${r.blocksPositive}/5`);
   window.scrollTo({top:0, behavior:'smooth'});
 }
 
