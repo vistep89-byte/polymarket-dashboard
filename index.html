@@ -96,6 +96,7 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
 <div class="tab-nav">
   <button class="tab-btn active" onclick="switchTab('snipe')" id="tab-btn-snipe">🎯 Snipe Strategy (legacy)</button>
   <button class="tab-btn" onclick="switchTab('hour')" id="tab-btn-hour">⏰ Hour-of-Day Search</button>
+  <button class="tab-btn" onclick="switchTab('stack')" id="tab-btn-stack">🔬 Pattern Stack Search</button>
 </div>
 
 <div class="tab-content active" id="tab-snipe">
@@ -481,14 +482,24 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
       <button onclick="toggleKlinesPaste()" class="tertiary">📋 Paste klines JSON</button>
     </div>
     
-    <div id="h-paste-section" style="display:none;margin-top:1rem">
-      <div style="font-size:13px;color:#666;margin-bottom:6px">
-        <strong>SQL для запуску в Supabase SQL editor:</strong>
-        <pre id="h-paste-sql" style="background:#1a1a1a;color:#e5e5e5;padding:10px;border-radius:6px;font-size:11px;overflow-x:auto;margin-top:6px;white-space:pre-wrap"></pre>
+    <div id="h-paste-section" style="display:none;margin-top:1rem;padding:14px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="background:#5856d6;color:white;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">1</span>
+        <strong style="font-size:13px">Скопіюй цей SQL у Supabase SQL editor і запусти його:</strong>
+        <button onclick="copyKlinesSQL()" style="margin-left:auto;width:auto;padding:6px 12px;font-size:12px">📋 Copy SQL</button>
       </div>
-      <label>Встав JSON результат тут:</label>
-      <textarea id="h-paste-input" rows="6" style="width:100%;font-family:monospace;font-size:11px;padding:8px;border:1px solid #ddd;border-radius:6px" placeholder='[{"hour_utc": 0, "f1": "52", ...}, ...]'></textarea>
-      <button onclick="parseKlinesJSON()" style="margin-top:8px">✓ Parse and Show</button>
+      <pre id="h-paste-sql" style="background:#1a1a1a;color:#e5e5e5;padding:10px;border-radius:6px;font-size:11px;overflow-x:auto;max-height:300px;white-space:pre;margin-bottom:14px"></pre>
+      
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="background:#5856d6;color:white;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">2</span>
+        <strong style="font-size:13px">Натисни "JSON" режим в Supabase результаті, скопіюй увесь масив <code style="background:#eee;padding:1px 6px;border-radius:4px;font-size:11px">[ {...}, {...} ]</code> і встав сюди:</strong>
+      </div>
+      <textarea id="h-paste-input" rows="6" style="width:100%;font-family:monospace;font-size:11px;padding:8px;border:1px solid #ddd;border-radius:6px;background:white" placeholder='[
+  {"hour_utc": 0, "f1": "52", "f2": "49", "f3": "49", "f4": "52", "f5": "47", "total_up": "50", "total_n": 1248},
+  {"hour_utc": 1, "f1": "53", "f2": "46", ...},
+  ...
+]'></textarea>
+      <button onclick="parseKlinesJSON()" style="margin-top:10px">✓ Parse and Show Results</button>
     </div>
   </div>
 
@@ -545,6 +556,196 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
     </div>
   </div>
 </div><!-- end tab-hour -->
+
+<div class="tab-content" id="tab-stack">
+  <div class="card">
+    <div style="background:#dbeafe;padding:10px 12px;border-radius:8px;margin-bottom:1rem;font-size:13px;color:#1e40af">
+      <strong>🔬 Pattern Stack Search:</strong> завантажує klines, обчислює 10 features на window, дозволяє знайти комбінації які стабільно дають edge через 5-fold CV. Шукає stacked filters які накопичують малі edges в великі.
+    </div>
+
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <span style="background:#5856d6;color:white;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">1</span>
+      <strong style="font-size:13px">Завантаж klines (через SQL paste workflow):</strong>
+      <select id="stack-asset" style="width:auto;padding:4px 8px;font-size:12px;margin-left:8px" onchange="updateStackSQL()">
+        <option value="btc">BTC</option>
+        <option value="eth" selected>ETH</option>
+      </select>
+      <select id="stack-tf" style="width:auto;padding:4px 8px;font-size:12px" onchange="updateStackSQL()">
+        <option value="5m" selected>5m</option>
+        <option value="15m">15m</option>
+      </select>
+      <button onclick="copyStackSQL()" style="margin-left:auto;width:auto;padding:6px 12px;font-size:12px">📋 Copy SQL</button>
+    </div>
+    <pre id="stack-sql" style="background:#1a1a1a;color:#e5e5e5;padding:10px;border-radius:6px;font-size:11px;overflow-x:auto;max-height:200px;white-space:pre;margin-bottom:14px"></pre>
+
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <span style="background:#5856d6;color:white;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">2</span>
+      <strong style="font-size:13px">Встав JSON результат:</strong>
+    </div>
+    <textarea id="stack-paste" rows="4" style="width:100%;font-family:monospace;font-size:11px;padding:8px;border:1px solid #ddd;border-radius:6px" placeholder='[{"w_start":..., "w_open":..., ...}, ...]'></textarea>
+    <button onclick="loadStackData()" style="margin-top:8px">⚙️ Load and Compute Features</button>
+  </div>
+
+  <div id="stack-error" class="error" style="display:none"></div>
+  <div id="stack-info" class="info" style="display:none"></div>
+  <div id="stack-loading" class="loading" style="display:none">
+    <div id="stack-loading-text">Обробка...</div>
+    <div class="progress-bar"><div class="progress-bar-fill" id="stack-progress" style="width:0%"></div></div>
+  </div>
+
+  <div id="stack-data-status" style="display:none">
+    <div class="card">
+      <h2>📊 Features computed</h2>
+      <div id="stack-data-summary" style="font-size:13px;color:#666;margin-bottom:1rem"></div>
+
+      <h2 style="margin-top:1rem;font-size:14px">Search Mode</h2>
+      <div class="toggle-row" style="margin-bottom:1rem">
+        <label><input type="radio" name="stack-mode" value="manual" checked> Manual (вручну вибрати filters)</label>
+        <label><input type="radio" name="stack-mode" value="greedy"> Greedy (auto-stack best filters)</label>
+        <label><input type="radio" name="stack-mode" value="exhaustive"> Exhaustive (всі combinations)</label>
+      </div>
+
+      <div id="stack-manual-filters">
+        <h2 style="font-size:14px;margin-bottom:0.5rem">Manual Filters</h2>
+        <div class="grid2" style="gap:0.75rem">
+          <div>
+            <label>Short pattern (4h_1h_20m_5m)</label>
+            <select id="f-short" multiple size="6" style="height:120px;font-size:11px">
+              <option value="*">* (any)</option>
+            </select>
+          </div>
+          <div>
+            <label>Macro (24h_7d)</label>
+            <select id="f-macro" multiple size="6" style="height:120px;font-size:11px">
+              <option value="*">* (any)</option>
+              <option value="UU">UU (full bull)</option>
+              <option value="UD">UD (bull within bear)</option>
+              <option value="DU">DU (bear within bull)</option>
+              <option value="DD">DD (full bear)</option>
+            </select>
+          </div>
+          <div>
+            <label>Volume regime</label>
+            <select id="f-vol" multiple size="5" style="height:100px;font-size:11px">
+              <option value="*">* (any)</option>
+              <option value="low">low (&lt;70%)</option>
+              <option value="normal">normal (70-130%)</option>
+              <option value="high">high (130-200%)</option>
+              <option value="extreme">extreme (&gt;200%)</option>
+            </select>
+          </div>
+          <div>
+            <label>Velocity (1h/4h ratio)</label>
+            <select id="f-velocity" multiple size="5" style="height:100px;font-size:11px">
+              <option value="*">* (any)</option>
+              <option value="decel">decelerating (&lt;15%)</option>
+              <option value="steady">steady (15-30%)</option>
+              <option value="accel">accelerating (30-50%)</option>
+              <option value="blowoff">blow-off (&gt;50%)</option>
+            </select>
+          </div>
+          <div>
+            <label>Magnitude of 4h move</label>
+            <select id="f-magnitude" multiple size="5" style="height:100px;font-size:11px">
+              <option value="*">* (any)</option>
+              <option value="mild">mild (&lt;0.5%)</option>
+              <option value="medium">medium (0.5-1.5%)</option>
+              <option value="strong">strong (1.5-3%)</option>
+              <option value="extreme">extreme (&gt;3%)</option>
+            </select>
+          </div>
+          <div>
+            <label>Session of day</label>
+            <select id="f-session" multiple size="6" style="height:120px;font-size:11px">
+              <option value="*">* (any)</option>
+              <option value="asia">asia (0-7)</option>
+              <option value="europe">europe (8-12)</option>
+              <option value="overlap">EU+US overlap (13-16)</option>
+              <option value="us">US (17-20)</option>
+              <option value="usclose">US close (21-23)</option>
+            </select>
+          </div>
+          <div>
+            <label>Day of week</label>
+            <select id="f-dow" multiple size="4" style="height:80px;font-size:11px">
+              <option value="*">* (any)</option>
+              <option value="weekday">Weekday (Mon-Fri)</option>
+              <option value="saturday">Saturday</option>
+              <option value="sunday">Sunday</option>
+            </select>
+          </div>
+          <div>
+            <label>Distance from 24h high/low</label>
+            <select id="f-distance" multiple size="4" style="height:80px;font-size:11px">
+              <option value="*">* (any)</option>
+              <option value="near-high">near 24h high (&gt;75%)</option>
+              <option value="middle">middle (25-75%)</option>
+              <option value="near-low">near 24h low (&lt;25%)</option>
+            </select>
+          </div>
+        </div>
+        <button onclick="runManualSearch()" style="margin-top:1rem">🔍 Apply Filters and Show Result</button>
+      </div>
+
+      <div id="stack-auto-controls" style="display:none">
+        <h2 style="font-size:14px;margin-bottom:0.5rem">Auto Search Settings</h2>
+        <div class="grid4" style="margin-bottom:1rem">
+          <div>
+            <label>Min sample size (n)</label>
+            <select id="stack-min-n">
+              <option value="30">30</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+            </select>
+          </div>
+          <div>
+            <label>Min 5-fold CV (folds in same direction)</label>
+            <select id="stack-min-folds">
+              <option value="3">3 of 5</option>
+              <option value="4" selected>4 of 5</option>
+              <option value="5">5 of 5 (strict)</option>
+            </select>
+          </div>
+          <div>
+            <label>Min edge (pp from 50%)</label>
+            <select id="stack-min-edge">
+              <option value="3">3pp</option>
+              <option value="5" selected>5pp</option>
+              <option value="8">8pp</option>
+              <option value="10">10pp</option>
+            </select>
+          </div>
+          <div>
+            <label>Top N results</label>
+            <select id="stack-top-n">
+              <option value="20">20</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+        </div>
+        <button onclick="runAutoSearch()" id="stack-search-btn">🔍 Run Search</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="stack-results" style="display:none">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+        <h2 id="stack-results-title">Search Results</h2>
+        <div style="font-size:12px;color:#888" id="stack-results-meta"></div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="hour-results-table" id="stack-results-table">
+          <thead><tr id="stack-results-header"></tr></thead>
+          <tbody id="stack-results-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div id="stack-detail-panel"></div>
+  </div>
+</div><!-- end tab-stack -->
 
 <script>
 const SB_URL = 'https://nteqbaiuindiumdnkbsc.supabase.co';
@@ -3297,16 +3498,32 @@ ORDER BY hour_utc;`;
   }
 }
 
+function copyKlinesSQL() {
+  const sql = document.getElementById('h-paste-sql').textContent;
+  navigator.clipboard.writeText(sql).then(() => {
+    hShowInfo('✓ SQL скопійовано. Тепер встав його в Supabase SQL editor → запусти → скопіюй JSON результат → встав у textarea нижче.');
+    setTimeout(() => document.getElementById('h-info').style.display = 'none', 5000);
+  }).catch(err => {
+    hShowErr('Не вдалось скопіювати: ' + err.message + '. Скопіюй вручну.');
+  });
+}
+
 function parseKlinesJSON() {
   hHideErr();
   const raw = document.getElementById('h-paste-input').value.trim();
   if (!raw) { hShowErr('Встав JSON у textarea вище'); return; }
   
+  // Detect SQL pasted instead of JSON
+  if (raw.toUpperCase().startsWith('WITH ') || raw.toUpperCase().startsWith('SELECT ') || raw.toUpperCase().includes('-- ')) {
+    hShowErr('Ти вставив SQL код. Сюди треба вставити JSON РЕЗУЛЬТАТ запиту (масив об\'єктів [{...}, {...}]), а не сам SQL. Запусти SQL у Supabase SQL editor, натисни "JSON" режим у результатах і скопіюй масив звідти.');
+    return;
+  }
+  
   let data;
   try {
     data = JSON.parse(raw);
   } catch (e) {
-    hShowErr('JSON parse error: ' + e.message);
+    hShowErr('JSON parse error: ' + e.message + '. Переконайся що ти скопіював JSON масив з Supabase результату, а не SQL код. У Supabase SQL editor: запусти запит → у результаті переключись на "JSON" вкладку → скопіюй весь текст.');
     return;
   }
   
@@ -3484,14 +3701,24 @@ function renderKlinesResults(results, asset, tf, totalWindows) {
     const totalPct = Math.round(r.totalUpPct * 100);
     const minPct = Math.round(r.minF * 100);
     
-    // Verdict: stable bias if all folds in same direction with edge ≥2pp
-    const allUp = r.foldUpPcts.every(f => f >= 0.52);
-    const allDown = r.foldUpPcts.every(f => f <= 0.48);
+    // Verdict: stable bias if all folds in same direction with edge
+    const foldsAt50plus = r.foldUpPcts.filter(f => f >= 0.51).length;
+    const foldsAt50minus = r.foldUpPcts.filter(f => f <= 0.49).length;
+    const totalEdge = (r.totalUpPct - 0.5) * 100; // in pp
+    
     let verdict, vCls;
-    if (allUp) { verdict = '✅ UP bias stable'; vCls = 'badge-good'; }
-    else if (allDown) { verdict = '✅ DOWN bias stable'; vCls = 'badge-good'; }
-    else if (Math.abs(r.totalUpPct - 0.5) < 0.02) { verdict = '⚪ Coin flip'; vCls = 'badge-warn'; }
-    else { verdict = '🟡 Variable'; vCls = 'badge-warn'; }
+    // Stable strong: all 5 folds в одну сторону + edge >= 3pp
+    if (foldsAt50plus === 5 && totalEdge >= 3) { verdict = '✅✅ Stable UP'; vCls = 'badge-good'; }
+    else if (foldsAt50minus === 5 && totalEdge <= -3) { verdict = '✅✅ Stable DOWN'; vCls = 'badge-good'; }
+    // Stable weak: all 5 folds в одну сторону + edge 1.5-3pp
+    else if (foldsAt50plus === 5 && totalEdge >= 1.5) { verdict = '✅ Weak UP'; vCls = 'badge-good'; }
+    else if (foldsAt50minus === 5 && totalEdge <= -1.5) { verdict = '✅ Weak DOWN'; vCls = 'badge-good'; }
+    // Mostly: 4/5 folds + edge >= 2pp
+    else if (foldsAt50plus >= 4 && totalEdge >= 2) { verdict = '🟡 Mostly UP'; vCls = 'badge-warn'; }
+    else if (foldsAt50minus >= 4 && totalEdge <= -2) { verdict = '🟡 Mostly DOWN'; vCls = 'badge-warn'; }
+    // Coin flip
+    else if (Math.abs(totalEdge) < 1.5) { verdict = '⚪ Coin flip'; vCls = 'badge-warn'; }
+    else { verdict = '❌ Variable'; vCls = 'badge-bad'; }
     
     tr.innerHTML = `
       <td><strong>${String(r.hour).padStart(2,'0')}:00</strong></td>
@@ -3506,6 +3733,704 @@ function renderKlinesResults(results, asset, tf, totalWindows) {
   }
 }
 
+// ==================== PATTERN STACK SEARCH (v6.5) ====================
+
+let stackFeatures = null;
+let stackAvailableShortPatterns = [];
+
+function updateStackSQL() {
+  const asset = document.getElementById('stack-asset').value;
+  const tf = document.getElementById('stack-tf').value;
+  const windowSec = tf === '5m' ? 300 : 900;
+  const tableName = asset + '_klines_1m';
+  
+  const sql = `-- ${asset.toUpperCase()} ${tf} aggregated windows для Pattern Stack Search
+WITH window_5m AS (
+  SELECT (EXTRACT(EPOCH FROM open_time)::bigint / ${windowSec}) * ${windowSec} AS w_start,
+    open_time, open::numeric AS o, close::numeric AS c, 
+    high::numeric AS h, low::numeric AS l,
+    volume::numeric AS vol, taker_buy_base_volume::numeric AS tbv
+  FROM ${tableName}
+)
+SELECT 
+  w_start,
+  (array_agg(o ORDER BY open_time))[1] AS w_open,
+  (array_agg(c ORDER BY open_time DESC))[1] AS w_close,
+  MAX(h) AS w_high,
+  MIN(l) AS w_low,
+  SUM(vol) AS w_vol,
+  SUM(tbv) AS w_tbv
+FROM window_5m
+GROUP BY w_start
+ORDER BY w_start;`;
+  
+  document.getElementById('stack-sql').textContent = sql;
+}
+
+function copyStackSQL() {
+  const sql = document.getElementById('stack-sql').textContent;
+  navigator.clipboard.writeText(sql).then(() => {
+    const e = document.getElementById('stack-info');
+    e.innerHTML = '✓ SQL скопійовано. Запусти в Supabase SQL editor → перемкни на JSON → встав сюди.';
+    e.style.display = 'block';
+    setTimeout(() => e.style.display = 'none', 5000);
+  });
+}
+
+function bucketVolume(ratio) {
+  if (ratio < 0.7) return 'low';
+  if (ratio < 1.3) return 'normal';
+  if (ratio < 2.0) return 'high';
+  return 'extreme';
+}
+
+function bucketVelocity(ratio) {
+  if (ratio < 0.15) return 'decel';
+  if (ratio < 0.30) return 'steady';
+  if (ratio < 0.50) return 'accel';
+  return 'blowoff';
+}
+
+function bucketMagnitude(absMove) {
+  if (absMove < 0.5) return 'mild';
+  if (absMove < 1.5) return 'medium';
+  if (absMove < 3) return 'strong';
+  return 'extreme';
+}
+
+function bucketSession(hour) {
+  if (hour <= 7) return 'asia';
+  if (hour <= 12) return 'europe';
+  if (hour <= 16) return 'overlap';
+  if (hour <= 20) return 'us';
+  return 'usclose';
+}
+
+function bucketDayOfWeek(dow) {
+  // 0 = Sunday, 6 = Saturday
+  if (dow === 0) return 'sunday';
+  if (dow === 6) return 'saturday';
+  return 'weekday';
+}
+
+function bucketDistance(price, high24, low24) {
+  if (high24 === low24) return 'middle';
+  const pct = (price - low24) / (high24 - low24);
+  if (pct >= 0.75) return 'near-high';
+  if (pct <= 0.25) return 'near-low';
+  return 'middle';
+}
+
+async function loadStackData() {
+  const errEl = document.getElementById('stack-error');
+  errEl.style.display = 'none';
+  
+  const raw = document.getElementById('stack-paste').value.trim();
+  if (!raw) {
+    errEl.textContent = 'Встав JSON у textarea вище';
+    errEl.style.display = 'block';
+    return;
+  }
+  
+  if (raw.toUpperCase().startsWith('WITH ') || raw.toUpperCase().startsWith('SELECT ')) {
+    errEl.textContent = 'Ти вставив SQL код. Сюди треба JSON масив [{...}, {...}] результату запиту.';
+    errEl.style.display = 'block';
+    return;
+  }
+  
+  let rows;
+  try {
+    rows = JSON.parse(raw);
+  } catch (e) {
+    errEl.textContent = 'JSON parse error: ' + e.message;
+    errEl.style.display = 'block';
+    return;
+  }
+  
+  if (!Array.isArray(rows) || !rows.length) {
+    errEl.textContent = 'Очікую масив об\'єктів з полями w_start, w_open, w_close, ...';
+    errEl.style.display = 'block';
+    return;
+  }
+  
+  document.getElementById('stack-loading').style.display = 'block';
+  document.getElementById('stack-loading-text').textContent = `Обчислюю features для ${rows.length} вікон...`;
+  document.getElementById('stack-progress').style.width = '10%';
+  
+  await new Promise(r => setTimeout(r, 50));
+  
+  // Parse and sort by w_start
+  rows = rows.map(r => ({
+    w_start: +r.w_start,
+    w_open: +r.w_open,
+    w_close: +r.w_close,
+    w_high: +r.w_high,
+    w_low: +r.w_low,
+    w_vol: +r.w_vol,
+    w_tbv: +(r.w_tbv || 0)
+  })).sort((a, b) => a.w_start - b.w_start);
+  
+  // Pre-compute lookback values via running sums where possible
+  document.getElementById('stack-progress').style.width = '30%';
+  await new Promise(r => setTimeout(r, 10));
+  
+  const features = [];
+  const tf = document.getElementById('stack-tf').value;
+  // Lookback windows for 5m: 1, 4 (20m), 12 (1h), 48 (4h), 288 (24h), 2016 (7d)
+  // For 15m: 1, 1 (15m can't do 20m, skip), 4 (1h), 16 (4h), 96 (24h), 672 (7d)
+  const lookbacks = tf === '5m' 
+    ? { prev1: 1, prev4: 4, prev12: 12, prev48: 48, prev288: 288, prev2016: 2016 }
+    : { prev1: 1, prev4: 1, prev12: 4, prev48: 16, prev288: 96, prev2016: 672 };
+  
+  const minIdx = lookbacks.prev2016;
+  
+  document.getElementById('stack-progress').style.width = '50%';
+  await new Promise(r => setTimeout(r, 10));
+  
+  for (let i = minIdx; i < rows.length; i++) {
+    const w = rows[i];
+    const prev1 = rows[i - lookbacks.prev1];
+    const prev4 = rows[i - lookbacks.prev4];
+    const prev12 = rows[i - lookbacks.prev12];
+    const prev48 = rows[i - lookbacks.prev48];
+    const prev288 = rows[i - lookbacks.prev288];
+    const prev2016 = rows[i - lookbacks.prev2016];
+    
+    // Directions across timeframes (prev1.close vs prevN.open)
+    const dir5m = prev1.w_close > prev1.w_open ? 'U' : 'D';
+    const dir20m = prev1.w_close > prev4.w_open ? 'U' : 'D';
+    const dir1h = prev1.w_close > prev12.w_open ? 'U' : 'D';
+    const dir4h = prev1.w_close > prev48.w_open ? 'U' : 'D';
+    const dir24h = prev1.w_close > prev288.w_open ? 'U' : 'D';
+    const dir7d = prev1.w_close > prev2016.w_open ? 'U' : 'D';
+    
+    // Magnitude 4h
+    const move4hPct = (prev1.w_close - prev48.w_open) / prev48.w_open * 100;
+    const absM4 = Math.abs(move4hPct);
+    
+    // Velocity (1h move abs / 4h move abs)
+    const move1hAbs = Math.abs((prev1.w_close - prev12.w_open) / prev12.w_open * 100);
+    const velRatio = absM4 > 0.05 ? move1hAbs / absM4 : 0.3; // skip if 4h move too small
+    
+    // Average volume over last 48 windows (4h)
+    let volSum = 0;
+    for (let j = i - lookbacks.prev48; j < i; j++) volSum += rows[j].w_vol;
+    const avgVol = volSum / lookbacks.prev48;
+    const volRatio = avgVol > 0 ? prev1.w_vol / avgVol : 1;
+    
+    // 24h high/low (max over 288)
+    let high24 = -Infinity, low24 = Infinity;
+    for (let j = i - lookbacks.prev288; j < i; j++) {
+      if (rows[j].w_high > high24) high24 = rows[j].w_high;
+      if (rows[j].w_low < low24) low24 = rows[j].w_low;
+    }
+    
+    // Date
+    const date = new Date(w.w_start * 1000);
+    const hour = date.getUTCHours();
+    const dow = date.getUTCDay();
+    
+    features.push({
+      w_start: w.w_start,
+      is_up: w.w_close > w.w_open,
+      short_p: dir4h + dir1h + dir20m + dir5m,
+      macro: dir24h + dir7d,
+      vol: bucketVolume(volRatio),
+      velocity: bucketVelocity(velRatio),
+      magnitude: bucketMagnitude(absM4),
+      session: bucketSession(hour),
+      dow: bucketDayOfWeek(dow),
+      distance: bucketDistance(prev1.w_close, high24, low24),
+    });
+    
+    if (i % 5000 === 0) {
+      document.getElementById('stack-progress').style.width = (50 + 40 * i / rows.length) + '%';
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
+  
+  stackFeatures = features;
+  
+  // Find unique short patterns
+  const spSet = new Set();
+  for (const f of features) spSet.add(f.short_p);
+  stackAvailableShortPatterns = [...spSet].sort();
+  
+  // Populate short pattern multi-select
+  const shortSel = document.getElementById('f-short');
+  shortSel.innerHTML = '<option value="*">* (any)</option>';
+  for (const sp of stackAvailableShortPatterns) {
+    const opt = document.createElement('option');
+    opt.value = sp;
+    opt.textContent = sp;
+    shortSel.appendChild(opt);
+  }
+  
+  document.getElementById('stack-loading').style.display = 'none';
+  document.getElementById('stack-data-status').style.display = 'block';
+  
+  const upCount = features.filter(f => f.is_up).length;
+  document.getElementById('stack-data-summary').innerHTML = 
+    `Завантажено <strong>${rows.length}</strong> raw вікон. ` +
+    `Computed features для <strong>${features.length}</strong> вікон (skipped перші ${minIdx} через нестачу історії). ` +
+    `Baseline UP rate: <strong>${(100 * upCount / features.length).toFixed(1)}%</strong>. ` +
+    `Unique short patterns: <strong>${stackAvailableShortPatterns.length}</strong>.`;
+}
+
+// Listen to search mode radio changes
+document.addEventListener('change', (e) => {
+  if (e.target.name === 'stack-mode') {
+    const mode = e.target.value;
+    document.getElementById('stack-manual-filters').style.display = mode === 'manual' ? 'block' : 'none';
+    document.getElementById('stack-auto-controls').style.display = mode === 'manual' ? 'none' : 'block';
+    document.getElementById('stack-search-btn').textContent = 
+      mode === 'greedy' ? '🔍 Run Greedy Search' : '🔍 Run Exhaustive Search';
+  }
+});
+
+function getSelectedValues(selectId) {
+  const sel = document.getElementById(selectId);
+  const values = [...sel.selectedOptions].map(o => o.value);
+  if (values.length === 0 || values.includes('*')) return null; // null = any
+  return values;
+}
+
+function applyFilters(features, filters) {
+  return features.filter(f => {
+    for (const [key, allowed] of Object.entries(filters)) {
+      if (allowed === null) continue;
+      if (!allowed.includes(f[key])) return false;
+    }
+    return true;
+  });
+}
+
+function splitFolds(items, n) {
+  const total = items.length;
+  const folds = Array.from({length: n}, () => []);
+  for (let i = 0; i < total; i++) {
+    let foldIdx = Math.floor((i * n) / total);
+    if (foldIdx >= n) foldIdx = n - 1;
+    folds[foldIdx].push(items[i]);
+  }
+  return folds;
+}
+
+function computeStats(items) {
+  if (items.length < 5) return null;
+  const folds = splitFolds(items, 5);
+  const foldWRs = folds.map(f => {
+    if (f.length === 0) return null;
+    const ups = f.filter(i => i.is_up).length;
+    return ups / f.length;
+  });
+  if (foldWRs.some(w => w === null)) return null;
+  
+  const totalUps = items.filter(i => i.is_up).length;
+  const totalWR = totalUps / items.length;
+  
+  const minWR = Math.min(...foldWRs);
+  const maxWR = Math.max(...foldWRs);
+  const avgWR = foldWRs.reduce((a, b) => a + b, 0) / foldWRs.length;
+  
+  // Profit folds: how many of 5 folds are on same side as overall direction
+  const direction = totalWR > 0.5 ? 'up' : 'down';
+  const profitFolds = foldWRs.filter(w => 
+    direction === 'up' ? w > 0.5 : w < 0.5
+  ).length;
+  
+  // CI 95% for total WR
+  const se = Math.sqrt(totalWR * (1 - totalWR) / items.length);
+  const ciLower = Math.max(0, totalWR - 1.96 * se);
+  const ciUpper = Math.min(1, totalWR + 1.96 * se);
+  
+  // edge from 50%
+  const edge = (totalWR - 0.5) * 100;
+  const ciEdgeLower = Math.abs(totalWR - 0.5) - 1.96 * se;
+  
+  return {
+    n: items.length,
+    foldWRs,
+    totalWR,
+    minWR,
+    maxWR,
+    avgWR,
+    profitFolds,
+    direction,
+    edge,
+    ciLower: ciLower * 100,
+    ciUpper: ciUpper * 100,
+    ciEdgeLower: ciEdgeLower * 100,
+    statSignificant: ciEdgeLower > 0
+  };
+}
+
+function runManualSearch() {
+  if (!stackFeatures) { alert('Спочатку завантаж дані'); return; }
+  
+  const filters = {
+    short_p: getSelectedValues('f-short'),
+    macro: getSelectedValues('f-macro'),
+    vol: getSelectedValues('f-vol'),
+    velocity: getSelectedValues('f-velocity'),
+    magnitude: getSelectedValues('f-magnitude'),
+    session: getSelectedValues('f-session'),
+    dow: getSelectedValues('f-dow'),
+    distance: getSelectedValues('f-distance'),
+  };
+  
+  const matched = applyFilters(stackFeatures, filters);
+  const stats = computeStats(matched);
+  
+  const activeFilters = Object.entries(filters).filter(([k, v]) => v !== null);
+  
+  const result = {
+    filterDesc: activeFilters.map(([k, v]) => `${k}=${v.join('/')}`).join(', ') || 'no filters (baseline)',
+    filters,
+    stats,
+  };
+  
+  renderStackResults([result], 'Manual Filter Result');
+}
+
+async function runAutoSearch() {
+  if (!stackFeatures) { alert('Спочатку завантаж дані'); return; }
+  
+  const mode = document.querySelector('input[name="stack-mode"]:checked').value;
+  const minN = +document.getElementById('stack-min-n').value;
+  const minFolds = +document.getElementById('stack-min-folds').value;
+  const minEdge = +document.getElementById('stack-min-edge').value;
+  const topN = +document.getElementById('stack-top-n').value;
+  
+  document.getElementById('stack-loading').style.display = 'block';
+  document.getElementById('stack-loading-text').textContent = mode === 'greedy' ? 'Greedy search...' : 'Exhaustive search...';
+  document.getElementById('stack-progress').style.width = '5%';
+  await new Promise(r => setTimeout(r, 50));
+  
+  let results;
+  if (mode === 'greedy') {
+    results = await greedySearch(stackFeatures, minN, minFolds, minEdge);
+  } else {
+    results = await exhaustiveSearch(stackFeatures, minN, minFolds, minEdge);
+  }
+  
+  document.getElementById('stack-loading').style.display = 'none';
+  
+  // Sort by abs edge × profitFolds (combined quality score)
+  results.sort((a, b) => {
+    const scoreA = Math.abs(a.stats.edge) * (a.stats.profitFolds === 5 ? 1.5 : a.stats.profitFolds === 4 ? 1.0 : 0.5);
+    const scoreB = Math.abs(b.stats.edge) * (b.stats.profitFolds === 5 ? 1.5 : b.stats.profitFolds === 4 ? 1.0 : 0.5);
+    return scoreB - scoreA;
+  });
+  
+  renderStackResults(results.slice(0, topN), mode === 'greedy' ? 'Greedy Search Results' : 'Exhaustive Search Results');
+}
+
+const FILTER_DIMENSIONS = ['short_p', 'macro', 'vol', 'velocity', 'magnitude', 'session', 'dow', 'distance'];
+const FILTER_VALUES = {
+  short_p: null, // populated from data
+  macro: ['UU', 'UD', 'DU', 'DD'],
+  vol: ['low', 'normal', 'high', 'extreme'],
+  velocity: ['decel', 'steady', 'accel', 'blowoff'],
+  magnitude: ['mild', 'medium', 'strong', 'extreme'],
+  session: ['asia', 'europe', 'overlap', 'us', 'usclose'],
+  dow: ['weekday', 'saturday', 'sunday'],
+  distance: ['near-high', 'middle', 'near-low'],
+};
+
+async function greedySearch(features, minN, minFolds, minEdge) {
+  // Start from each short pattern as base, greedily add filters
+  const results = [];
+  FILTER_VALUES.short_p = stackAvailableShortPatterns;
+  
+  for (const sp of stackAvailableShortPatterns) {
+    let currentFilters = { short_p: [sp] };
+    let currentMatch = applyFilters(features, currentFilters);
+    let currentStats = computeStats(currentMatch);
+    
+    if (!currentStats || currentMatch.length < minN) continue;
+    if (Math.abs(currentStats.edge) < 1) continue;
+    
+    // Save baseline
+    if (Math.abs(currentStats.edge) >= minEdge && currentStats.profitFolds >= minFolds) {
+      results.push({
+        filterDesc: describeFilters(currentFilters),
+        filters: {...currentFilters},
+        stats: currentStats
+      });
+    }
+    
+    // Greedily add filters
+    const usedDims = new Set(['short_p']);
+    for (let depth = 0; depth < 5; depth++) {
+      let bestNewStats = currentStats;
+      let bestNewFilters = null;
+      let bestNewMatch = null;
+      
+      for (const dim of FILTER_DIMENSIONS) {
+        if (usedDims.has(dim)) continue;
+        const values = dim === 'short_p' ? stackAvailableShortPatterns : FILTER_VALUES[dim];
+        
+        for (const val of values) {
+          const trialFilters = {...currentFilters, [dim]: [val]};
+          const trialMatch = applyFilters(features, trialFilters);
+          if (trialMatch.length < minN) continue;
+          const trialStats = computeStats(trialMatch);
+          if (!trialStats) continue;
+          
+          // Improvement: same direction, better edge
+          if (trialStats.direction !== currentStats.direction) continue;
+          if (Math.abs(trialStats.edge) > Math.abs(bestNewStats.edge) + 0.5) {
+            bestNewStats = trialStats;
+            bestNewFilters = {dim, val, allFilters: trialFilters};
+            bestNewMatch = trialMatch;
+          }
+        }
+      }
+      
+      if (!bestNewFilters) break;
+      
+      currentFilters = bestNewFilters.allFilters;
+      currentMatch = bestNewMatch;
+      currentStats = bestNewStats;
+      usedDims.add(bestNewFilters.dim);
+      
+      if (Math.abs(currentStats.edge) >= minEdge && currentStats.profitFolds >= minFolds) {
+        results.push({
+          filterDesc: describeFilters(currentFilters),
+          filters: {...currentFilters},
+          stats: currentStats
+        });
+      }
+    }
+    
+    if (results.length > 200) break; // safety
+    await new Promise(r => setTimeout(r, 0));
+  }
+  
+  return results;
+}
+
+async function exhaustiveSearch(features, minN, minFolds, minEdge) {
+  // Group features by composite key (all dimensions)
+  // For exhaustive we use 1-3 dimensions at a time to avoid combinatorial explosion
+  
+  const results = [];
+  FILTER_VALUES.short_p = stackAvailableShortPatterns;
+  
+  // 1D groupings
+  for (const dim of FILTER_DIMENSIONS) {
+    const values = dim === 'short_p' ? stackAvailableShortPatterns : FILTER_VALUES[dim];
+    for (const val of values) {
+      const filters = {[dim]: [val]};
+      const match = applyFilters(features, filters);
+      if (match.length < minN) continue;
+      const stats = computeStats(match);
+      if (!stats) continue;
+      if (Math.abs(stats.edge) >= minEdge && stats.profitFolds >= minFolds) {
+        results.push({
+          filterDesc: describeFilters(filters),
+          filters,
+          stats
+        });
+      }
+    }
+  }
+  
+  document.getElementById('stack-progress').style.width = '20%';
+  await new Promise(r => setTimeout(r, 0));
+  
+  // 2D groupings
+  for (let i = 0; i < FILTER_DIMENSIONS.length; i++) {
+    for (let j = i + 1; j < FILTER_DIMENSIONS.length; j++) {
+      const dim1 = FILTER_DIMENSIONS[i];
+      const dim2 = FILTER_DIMENSIONS[j];
+      const vals1 = dim1 === 'short_p' ? stackAvailableShortPatterns : FILTER_VALUES[dim1];
+      const vals2 = dim2 === 'short_p' ? stackAvailableShortPatterns : FILTER_VALUES[dim2];
+      
+      for (const v1 of vals1) {
+        for (const v2 of vals2) {
+          const filters = {[dim1]: [v1], [dim2]: [v2]};
+          const match = applyFilters(features, filters);
+          if (match.length < minN) continue;
+          const stats = computeStats(match);
+          if (!stats) continue;
+          if (Math.abs(stats.edge) >= minEdge && stats.profitFolds >= minFolds) {
+            results.push({
+              filterDesc: describeFilters(filters),
+              filters,
+              stats
+            });
+          }
+        }
+      }
+    }
+    document.getElementById('stack-progress').style.width = (20 + 30 * i / FILTER_DIMENSIONS.length) + '%';
+    await new Promise(r => setTimeout(r, 0));
+  }
+  
+  // 3D groupings (limited to most promising — short_p + 2 others)
+  const bestShortPatterns = stackAvailableShortPatterns.slice(0, Math.min(16, stackAvailableShortPatterns.length));
+  for (const sp of bestShortPatterns) {
+    const baseMatch = features.filter(f => f.short_p === sp);
+    if (baseMatch.length < minN * 4) continue;
+    
+    for (let i = 0; i < FILTER_DIMENSIONS.length; i++) {
+      for (let j = i + 1; j < FILTER_DIMENSIONS.length; j++) {
+        const dim1 = FILTER_DIMENSIONS[i];
+        const dim2 = FILTER_DIMENSIONS[j];
+        if (dim1 === 'short_p' || dim2 === 'short_p') continue;
+        const vals1 = FILTER_VALUES[dim1];
+        const vals2 = FILTER_VALUES[dim2];
+        
+        for (const v1 of vals1) {
+          for (const v2 of vals2) {
+            const match = baseMatch.filter(f => f[dim1] === v1 && f[dim2] === v2);
+            if (match.length < minN) continue;
+            const stats = computeStats(match);
+            if (!stats) continue;
+            if (Math.abs(stats.edge) >= minEdge && stats.profitFolds >= minFolds) {
+              const filters = {short_p: [sp], [dim1]: [v1], [dim2]: [v2]};
+              results.push({
+                filterDesc: describeFilters(filters),
+                filters,
+                stats
+              });
+            }
+          }
+        }
+      }
+    }
+    document.getElementById('stack-progress').style.width = (50 + 50 * (bestShortPatterns.indexOf(sp) + 1) / bestShortPatterns.length) + '%';
+    await new Promise(r => setTimeout(r, 0));
+  }
+  
+  return results;
+}
+
+function describeFilters(filters) {
+  return Object.entries(filters)
+    .map(([k, v]) => `${k}=${v.join('/')}`)
+    .join(' + ');
+}
+
+function renderStackResults(results, title) {
+  document.getElementById('stack-results').style.display = 'block';
+  document.getElementById('stack-results-title').textContent = title;
+  document.getElementById('stack-results-meta').textContent = `${results.length} results, sorted by edge × stability`;
+  
+  const header = document.getElementById('stack-results-header');
+  header.innerHTML = `
+    <th>#</th>
+    <th>Filters</th>
+    <th>Dir</th>
+    <th>n</th>
+    <th title="WR per fold">f1</th><th>f2</th><th>f3</th><th>f4</th><th>f5</th>
+    <th title="Min fold WR (worst case)">Min</th>
+    <th title="Total WR">Total</th>
+    <th title="Profit folds same direction">P/5</th>
+    <th title="Edge from 50% in pp">Edge</th>
+    <th title="CI 95% lower bound for edge">CI lower</th>
+    <th>Verdict</th>
+  `;
+  
+  const tbody = document.getElementById('stack-results-body');
+  tbody.innerHTML = '';
+  
+  if (results.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="15" style="text-align:center;padding:20px;color:#888">Жодний combo не пройшов критерії. Спробуй знизити min sample або min edge.</td></tr>';
+    return;
+  }
+  
+  window._stackResults = results;
+  
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    const s = r.stats;
+    if (!s) continue;
+    
+    const tr = document.createElement('tr');
+    tr.onclick = () => showStackDetail(i);
+    
+    const fmtF = (w) => {
+      const pct = Math.round(w * 100);
+      let cls = 'fold-cell';
+      const inDir = s.direction === 'up' ? w > 0.5 : w < 0.5;
+      if (inDir && Math.abs(w - 0.5) >= 0.05) cls += ' good';
+      else if (!inDir && Math.abs(w - 0.5) >= 0.03) cls += ' bad';
+      else cls += ' warn';
+      return `<td class="${cls}">${pct}</td>`;
+    };
+    
+    let verdict, vCls;
+    if (s.statSignificant && s.profitFolds === 5 && Math.abs(s.edge) >= 8) { 
+      verdict = '✅✅ Strong'; vCls = 'badge-good'; 
+    } else if (s.statSignificant && s.profitFolds >= 4) { 
+      verdict = '✅ Validated'; vCls = 'badge-good'; 
+    } else if (s.profitFolds >= 4) { 
+      verdict = '🟡 Maybe'; vCls = 'badge-warn'; 
+    } else { 
+      verdict = '❌ Weak'; vCls = 'badge-bad'; 
+    }
+    
+    const edgeCls = s.edge > 0 ? 'positive' : 'negative';
+    
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td style="font-size:11px;color:#444;max-width:300px;white-space:normal;word-break:break-word">${r.filterDesc}</td>
+      <td><span class="badge ${s.direction==='up'?'badge-up':'badge-down'}">${s.direction.toUpperCase()}</span></td>
+      <td>${s.n}</td>
+      ${s.foldWRs.map(fmtF).join('')}
+      <td><strong>${Math.round(s.minWR*100)}</strong></td>
+      <td>${Math.round(s.totalWR*100)}</td>
+      <td>${s.profitFolds}/5</td>
+      <td class="${edgeCls}"><strong>${s.edge >= 0 ? '+' : ''}${s.edge.toFixed(1)}</strong></td>
+      <td>${s.ciEdgeLower >= 0 ? '+' : ''}${s.ciEdgeLower.toFixed(1)}</td>
+      <td><span class="badge ${vCls}">${verdict}</span></td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+function showStackDetail(idx) {
+  const r = window._stackResults[idx];
+  if (!r) return;
+  
+  const panel = document.getElementById('stack-detail-panel');
+  const s = r.stats;
+  
+  panel.innerHTML = `
+    <div class="card">
+      <h2>Деталі: ${r.filterDesc}</h2>
+      <div class="hour-detail">
+        <div class="hour-detail-section">
+          <div class="hour-detail-title">Метрики</div>
+          <div>Sample: <strong>${s.n}</strong> | Direction: <strong>${s.direction.toUpperCase()}</strong></div>
+          <div>5-fold WR: ${s.foldWRs.map(w => Math.round(w*100)).join(' / ')} %</div>
+          <div>Min: <strong>${Math.round(s.minWR*100)}%</strong> | Max: ${Math.round(s.maxWR*100)}% | Avg: ${Math.round(s.avgWR*100)}%</div>
+          <div>Total WR: <strong>${(s.totalWR*100).toFixed(1)}%</strong> | Edge: <strong>${s.edge >= 0 ? '+' : ''}${s.edge.toFixed(1)}пп</strong></div>
+          <div>CI 95%: ${s.ciLower.toFixed(1)}% – ${s.ciUpper.toFixed(1)}% | Edge CI lower: <strong>${s.ciEdgeLower >= 0 ? '+' : ''}${s.ciEdgeLower.toFixed(1)}пп</strong></div>
+        </div>
+        <div class="hour-detail-section">
+          <div class="hour-detail-title">Robustness</div>
+          <div>${s.profitFolds >= 5 ? '✅' : s.profitFolds >= 4 ? '🟡' : '❌'} Profit folds (same direction): <strong>${s.profitFolds}/5</strong></div>
+          <div>${s.statSignificant ? '✅' : '❌'} Statistical significance (CI lower > 0): <strong>${s.statSignificant ? 'YES' : 'NO'}</strong></div>
+          <div>${s.n >= 100 ? '✅' : s.n >= 50 ? '🟡' : '❌'} Sample size: <strong>${s.n}</strong> ${s.n >= 100 ? '(solid)' : s.n >= 50 ? '(moderate)' : '(weak)'}</div>
+        </div>
+        <div class="hour-detail-section">
+          <div class="hour-detail-title">Trading Math (entry 0.50, payoff 100%)</div>
+          <div>Gross EV per trade: <strong>${(2 * s.edge).toFixed(1)}%</strong></div>
+          <div>Net EV (-2% fees): <strong>${(2 * s.edge - 2).toFixed(1)}%</strong></div>
+          <div>На $5 stake × 1000 trades: ${(50 * s.edge - 50).toFixed(0)}$</div>
+        </div>
+      </div>
+    </div>
+  `;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Initialize SQL on load
+setTimeout(updateStackSQL, 100);
 // ===============================================
 </script>
 </body>
