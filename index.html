@@ -1770,7 +1770,8 @@ async function runKFoldOptimizer(strict) {
 // ===========================================================
 
 async function runRollingWalkForward() {
-  hideMsgs();
+  document.getElementById('error-msg').style.display='none';
+  document.getElementById('info-msg').style.display='none';
   const asset=document.getElementById('asset').value;
   const tf=document.getElementById('tf').value;
   const pos=+document.getElementById('pos').value;
