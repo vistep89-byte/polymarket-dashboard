@@ -1336,9 +1336,35 @@ const KFOPT_GRID_15M = {
   direction: ['follow', 'contrarian']
 };
 
-// Отримати grid в залежності від таймфрейму
-function getKfoptGrid(tf) {
-  return tf === '15m' ? KFOPT_GRID_15M : KFOPT_GRID;
+// ETH 5m — масштабований delta під волатильність ETH
+// Аудит показав: ETH avg |delta| = 0.081% vs BTC 0.064% (ratio 1.27x)
+// ETH P95 = 0.227% vs BTC 0.185% (ratio 1.23x)
+// Делаємо delta grid ~1.4x вище — щоб ловити РЕАЛЬНО сильні сигнали ETH
+const KFOPT_GRID_ETH = {
+  delta:     [0.07, 0.10, 0.15, 0.20],   // ⬆ масштабовано під ETH
+  emin:      [0.70, 0.75, 0.78, 0.82],
+  emax:      [0.85, 0.90, 0.95],
+  tmin:      [10, 30, 60, 120],
+  tmax:      [200, 240, 300],
+  direction: ['follow', 'contrarian']
+};
+
+// ETH 15m — масштабований delta + розширений time (для 15m вікон)
+const KFOPT_GRID_ETH_15M = {
+  delta:     [0.10, 0.15, 0.22, 0.30],   // ⬆ ще вище, бо 15m рухи більші
+  emin:      [0.70, 0.75, 0.78, 0.82],
+  emax:      [0.85, 0.90, 0.95],
+  tmin:      [60, 120, 240, 480],
+  tmax:      [600, 750, 880],
+  direction: ['follow', 'contrarian']
+};
+
+// Отримати grid в залежності від активу і таймфрейму
+function getKfoptGrid(asset, tf) {
+  if (asset === 'eth' && tf === '15m') return KFOPT_GRID_ETH_15M;
+  if (asset === 'eth')                return KFOPT_GRID_ETH;
+  if (tf === '15m')                   return KFOPT_GRID_15M;
+  return KFOPT_GRID;
 }
 
 // Маппінг direction внутрішнього → людського
@@ -1571,8 +1597,8 @@ async function runKFoldOptimizer(strict) {
       testRows = null;
     }
 
-    // Generate all valid combinations (grid depends on timeframe)
-    const grid = getKfoptGrid(tf);
+    // Generate all valid combinations (grid depends on asset + timeframe)
+    const grid = getKfoptGrid(asset, tf);
     const combos = [];
     for (const delta of grid.delta)
       for (const emin of grid.emin)
@@ -1840,8 +1866,8 @@ async function runRollingWalkForward() {
       return;
     }
 
-    // Генеруємо комбінації (grid depends on timeframe)
-    const grid = getKfoptGrid(tf);
+    // Генеруємо комбінації (grid depends on asset + timeframe)
+    const grid = getKfoptGrid(asset, tf);
     const combos = [];
     for (const delta of grid.delta)
       for (const emin of grid.emin)
