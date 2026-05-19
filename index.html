@@ -65,11 +65,40 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
 .strat-breakdown-name { font-weight: 500; margin-bottom: 4px; }
 .strat-breakdown-stats { display: flex; gap: 12px; font-size: 12px; color: #666; flex-wrap: wrap; }
 @media (max-width: 720px) { .section-split { grid-template-columns: 1fr; } .btn-row { grid-template-columns: 1fr; } }
+.tab-nav { display: flex; gap: 0; margin-bottom: 1rem; background: white; border-radius: 12px; padding: 4px; border: 1px solid #e5e5e5; }
+.tab-btn { flex: 1; padding: 10px 16px; background: transparent; color: #666; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+.tab-btn:hover { background: #f5f5f5; color: #1a1a1a; }
+.tab-btn.active { background: #5856d6; color: white; }
+.tab-btn.active:hover { background: #4a49c0; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.hour-results-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.hour-results-table th { padding: 8px 6px; text-align: left; font-weight: 500; color: #888; border-bottom: 1px solid #eee; background: #fafafa; font-size: 11px; white-space: nowrap; }
+.hour-results-table td { padding: 7px 6px; border-bottom: 1px solid #f0f0f0; cursor: pointer; white-space: nowrap; }
+.hour-results-table tr:hover td { background: #f0f4ff; }
+.hour-best td { background: #f0fdf4 !important; }
+.fold-cell { font-weight: 500; }
+.fold-cell.good { color: #16a34a; } .fold-cell.bad { color: #dc2626; } .fold-cell.warn { color: #b45309; }
+.progress-bar { background: #eee; height: 6px; border-radius: 3px; overflow: hidden; margin: 8px 0; }
+.progress-bar-fill { background: #5856d6; height: 100%; transition: width 0.2s; }
+.toggle-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 6px 0; }
+.toggle-row label { display: flex; align-items: center; gap: 4px; margin: 0; cursor: pointer; padding: 6px 10px; background: #f5f5f5; border-radius: 6px; font-size: 12px; }
+.toggle-row label input { cursor: pointer; }
+.hour-detail { background: #fafafa; padding: 12px; border-radius: 8px; margin-top: 8px; font-size: 13px; }
+.hour-detail-section { margin-bottom: 10px; }
+.hour-detail-title { font-weight: 600; margin-bottom: 4px; color: #555; }
 </style>
 </head>
 <body>
 <div class="container">
-<h1>Polymarket Strategy Tester v5.3 — k-fold + adaptive filters + stop-loss test</h1>
+<h1>Polymarket Strategy Tester v6.0 — Snipe + Hour-of-Day Search</h1>
+
+<div class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('snipe')" id="tab-btn-snipe">🎯 Snipe Strategy (legacy)</button>
+  <button class="tab-btn" onclick="switchTab('hour')" id="tab-btn-hour">⏰ Hour-of-Day Search</button>
+</div>
+
+<div class="tab-content active" id="tab-snipe">
 
 <div class="card">
   <div class="grid4" style="margin-bottom:1rem">
@@ -380,6 +409,131 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
   </div>
 </div>
 </div>
+
+</div><!-- end tab-snipe -->
+
+<div class="tab-content" id="tab-hour">
+  <div class="card">
+    <div style="background:#fef3c7;padding:10px 12px;border-radius:8px;margin-bottom:1rem;font-size:13px;color:#92400e">
+      <strong>⏰ Hour-of-Day Search:</strong> шукає закономірності "о певній годині UTC ринок частіше йде up/down". 
+      Ставка робиться на старті вікна (entry близько до 0.50). Кожна гіпотеза валідується через 5-fold CV.
+    </div>
+
+    <div class="grid4" style="margin-bottom:1rem">
+      <div><label>Актив</label>
+        <select id="h-asset">
+          <option value="btc">BTC</option><option value="eth">ETH</option>
+          <option value="sol">SOL</option><option value="xrp">XRP</option>
+        </select>
+      </div>
+      <div><label>Timeframe</label>
+        <select id="h-tf" onchange="updatePhaseDefault()">
+          <option value="5m">5m</option><option value="15m">15m</option>
+        </select>
+      </div>
+      <div><label>Stake ($)</label>
+        <select id="h-stake">
+          <option value="1">$1</option><option value="2" selected>$2</option>
+          <option value="5">$5</option><option value="10">$10</option>
+        </select>
+      </div>
+      <div><label>Min sample per fold</label>
+        <select id="h-minfold">
+          <option value="3">3</option><option value="5" selected>5</option>
+          <option value="10">10</option><option value="15">15</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="grid4" style="margin-bottom:1rem">
+      <div><label>Entry zone min: <strong id="h-emin-v">0.40</strong></label>
+        <input type="range" id="h-emin" min="0.20" max="0.50" step="0.01" value="0.40" oninput="document.getElementById('h-emin-v').textContent=(+this.value).toFixed(2)">
+      </div>
+      <div><label>Entry zone max: <strong id="h-emax-v">0.60</strong></label>
+        <input type="range" id="h-emax" min="0.50" max="0.80" step="0.01" value="0.60" oninput="document.getElementById('h-emax-v').textContent=(+this.value).toFixed(2)">
+      </div>
+      <div><label>Window phase: <strong id="h-phase-v">270s+ до close</strong></label>
+        <input type="range" id="h-phase" min="60" max="870" step="30" value="270" oninput="document.getElementById('h-phase-v').textContent=this.value+'s+ до close'">
+      </div>
+      <div><label>Sort by</label>
+        <select id="h-sort">
+          <option value="min_wr">Min fold WR (робастність)</option>
+          <option value="avg_wr">Avg fold WR</option>
+          <option value="real_pnl">Real PnL</option>
+          <option value="profit_folds">Прибуткові folds</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-bottom:1rem">
+      <div style="font-size:12px;color:#666;margin-bottom:6px"><strong>Secondary filters</strong> (для Deep Search):</div>
+      <div class="toggle-row">
+        <label><input type="checkbox" id="h-f-dow" checked> Day-of-week (weekday/weekend)</label>
+        <label><input type="checkbox" id="h-f-ob" checked> OB imbalance (up_liq vs down_liq)</label>
+        <label><input type="checkbox" id="h-f-arb"> Arb spread (efficient/mispriced)</label>
+      </div>
+    </div>
+
+    <div class="btn-row" style="grid-template-columns:1fr 1fr 1fr">
+      <button onclick="runHourBasicSearch()">🔍 Basic Search (24h × 2dir)</button>
+      <button onclick="runHourDeepSearch()" class="secondary">🔬 Deep Search (+filters)</button>
+      <button onclick="runKlinesValidation()" class="tertiary">📊 Validate on klines</button>
+    </div>
+  </div>
+
+  <div id="h-error" class="error" style="display:none"></div>
+  <div id="h-info" class="info" style="display:none"></div>
+  <div id="h-loading" class="loading" style="display:none">
+    <div id="h-loading-text">Завантаження...</div>
+    <div class="progress-bar"><div class="progress-bar-fill" id="h-progress" style="width:0%"></div></div>
+  </div>
+
+  <div id="h-results" style="display:none">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+        <h2 id="h-results-title">Результати пошуку</h2>
+        <div style="font-size:12px;color:#888" id="h-results-meta"></div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="hour-results-table">
+          <thead>
+            <tr>
+              <th>#</th><th>Hour</th><th>Dir</th><th>Filters</th>
+              <th title="WR на кожному з 5 folds">f1</th><th>f2</th><th>f3</th><th>f4</th><th>f5</th>
+              <th title="Найгірший fold">Min</th>
+              <th title="Середній по folds">Avg</th>
+              <th title="Скільки folds в плюсі">P/5</th>
+              <th title="Всього трейдів">n</th>
+              <th>Avg Entry</th>
+              <th title="Реальний PnL з actual entries">Real PnL</th>
+              <th>Verdict</th>
+            </tr>
+          </thead>
+          <tbody id="h-results-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div id="h-detail-panel"></div>
+  </div>
+
+  <div id="h-klines-results" style="display:none">
+    <div class="card">
+      <h2>📊 Klines validation (out-of-sample на старих даних Binance)</h2>
+      <div style="font-size:13px;color:#666;margin-bottom:1rem" id="h-klines-meta"></div>
+      <div style="overflow-x:auto">
+        <table class="hour-results-table">
+          <thead>
+            <tr>
+              <th>Hour</th><th>f1</th><th>f2</th><th>f3</th><th>f4</th><th>f5</th>
+              <th>Min</th><th>Avg</th><th>Total UP%</th><th>n</th><th>Verdict</th>
+            </tr>
+          </thead>
+          <tbody id="h-klines-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div><!-- end tab-hour -->
 
 <script>
 const SB_URL = 'https://nteqbaiuindiumdnkbsc.supabase.co';
@@ -2651,6 +2805,569 @@ async function stopLossTest(idx) {
 
   content.innerHTML = html;
 }
+// ===============================================
+
+// ==================== HOUR-OF-DAY SEARCH (v6.0) ====================
+
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tabId).classList.add('active');
+  document.getElementById('tab-btn-' + tabId).classList.add('active');
+}
+
+function updatePhaseDefault() {
+  const tf = document.getElementById('h-tf').value;
+  const slider = document.getElementById('h-phase');
+  const display = document.getElementById('h-phase-v');
+  if (tf === '5m') {
+    slider.max = '290'; slider.value = '270';
+    display.textContent = '270s+ до close';
+  } else {
+    slider.max = '890'; slider.value = '870';
+    display.textContent = '870s+ до close';
+  }
+}
+
+let hourCache = null, hourCacheKey = null;
+let hourSnapshots = null;  // start-of-window snapshots with up_liq/down_liq
+
+function hSetL(msg, pct) {
+  document.getElementById('h-loading').style.display = 'block';
+  document.getElementById('h-loading-text').textContent = msg;
+  if (pct !== undefined) document.getElementById('h-progress').style.width = pct + '%';
+}
+
+function hHideL() { document.getElementById('h-loading').style.display = 'none'; }
+function hShowErr(msg) { const e = document.getElementById('h-error'); e.textContent = msg; e.style.display = 'block'; }
+function hHideErr() { document.getElementById('h-error').style.display = 'none'; }
+function hShowInfo(msg) { const e = document.getElementById('h-info'); e.innerHTML = msg; e.style.display = 'block'; }
+
+// Fetch start-of-window snapshots with up_liq/down_liq for hour analysis
+async function fetchHourSnapshots(asset, tf, phaseMin) {
+  const k = `${asset}_${tf}_${phaseMin}`;
+  if (hourCacheKey === k && hourSnapshots) return hourSnapshots;
+  
+  const phaseMax = tf === '5m' ? 295 : 895;
+  const rows = [];
+  let offset = 0;
+  
+  while (true) {
+    const url = `${SB_URL}/rest/v1/market_snapshots?select=window_ts,seconds_to_close,up_ask,down_ask,up_liq,down_liq,delta_pct,final_direction&asset=eq.${asset}&timeframe=eq.${tf}&final_direction=not.is.null&seconds_to_close=gte.${phaseMin}&seconds_to_close=lte.${phaseMax}&order=window_ts.desc`;
+    const r = await fetch(url, {
+      headers: {'apikey': SB_KEY, 'Authorization': 'Bearer '+SB_KEY, 'Range': `${offset}-${offset+999}`, 'Range-Unit': 'items'}
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const b = await r.json();
+    if (!b.length) break;
+    rows.push(...b);
+    hSetL(`Завантажено ${rows.length} snapshots...`, Math.min(40, rows.length / 100));
+    if (b.length < 1000) break;
+    offset += 1000;
+    if (offset > 100000) break;
+  }
+  
+  // Dedupe: take highest seconds_to_close per window (earliest snapshot)
+  const map = new Map();
+  for (const r of rows) {
+    const existing = map.get(r.window_ts);
+    if (!existing || +r.seconds_to_close > +existing.seconds_to_close) {
+      map.set(r.window_ts, r);
+    }
+  }
+  const unique = [...map.values()].sort((a, b) => a.window_ts - b.window_ts);
+  
+  hourCacheKey = k;
+  hourSnapshots = unique;
+  return unique;
+}
+
+// Split items into N time-ordered folds
+function splitFolds(items, nFolds) {
+  const total = items.length;
+  const folds = Array.from({length: nFolds}, () => []);
+  for (let i = 0; i < total; i++) {
+    let foldIdx = Math.floor((i * nFolds) / total);
+    if (foldIdx >= nFolds) foldIdx = nFolds - 1;
+    folds[foldIdx].push(items[i]);
+  }
+  return folds;
+}
+
+// Evaluate single combination (hour, direction, optional filters)
+function evaluateHourCombo(snapshots, hour, direction, filters, cfg) {
+  // Filter windows matching this combo
+  const matching = [];
+  for (const s of snapshots) {
+    const wts = +s.window_ts;
+    const date = new Date(wts * 1000);
+    const h = date.getUTCHours();
+    if (h !== hour) continue;
+    
+    const dow = date.getUTCDay(); // 0 = Sunday
+    const isWeekend = (dow === 0 || dow === 6);
+    
+    // Apply secondary filters
+    if (filters.dow === 'weekday' && isWeekend) continue;
+    if (filters.dow === 'weekend' && !isWeekend) continue;
+    
+    const upLiq = +s.up_liq || 0;
+    const downLiq = +s.down_liq || 0;
+    if (upLiq > 0 && downLiq > 0) {
+      const obRatio = upLiq / downLiq;
+      if (filters.ob === 'bullish' && obRatio < 1.2) continue;
+      if (filters.ob === 'bearish' && obRatio > 0.8) continue;
+    } else if (filters.ob !== 'all') {
+      continue;
+    }
+    
+    const upAsk = +s.up_ask || 0;
+    const downAsk = +s.down_ask || 0;
+    const arbSpread = 1 - upAsk - downAsk;
+    if (filters.arb === 'efficient' && arbSpread < 0) continue;
+    if (filters.arb === 'mispriced' && arbSpread >= 0) continue;
+    
+    // Entry zone filter
+    const entry = direction === 'up' ? upAsk : downAsk;
+    if (entry < cfg.emin || entry > cfg.emax) continue;
+    
+    const won = s.final_direction === direction;
+    matching.push({ wts, entry, won, dow, obRatio: upLiq && downLiq ? upLiq/downLiq : null });
+  }
+  
+  if (matching.length < cfg.minFold * 5) return null;
+  
+  // 5-fold CV
+  const folds = splitFolds(matching, 5);
+  const foldWRs = [];
+  const foldPnLs = [];
+  let totalPnL = 0;
+  let totalWins = 0;
+  
+  for (const fold of folds) {
+    if (fold.length < cfg.minFold) return null; // require min samples
+    const wins = fold.filter(t => t.won).length;
+    const wr = wins / fold.length;
+    foldWRs.push(wr);
+    
+    let pnl = 0;
+    for (const t of fold) {
+      if (t.won) pnl += (1.0 / t.entry - 1) * cfg.stake;
+      else pnl -= cfg.stake;
+    }
+    foldPnLs.push(pnl);
+    totalPnL += pnl;
+    totalWins += wins;
+  }
+  
+  const minWR = Math.min(...foldWRs);
+  const maxWR = Math.max(...foldWRs);
+  const avgWR = foldWRs.reduce((a, b) => a + b, 0) / foldWRs.length;
+  const profitFolds = foldPnLs.filter(p => p > 0).length;
+  const avgEntry = matching.reduce((s, t) => s + t.entry, 0) / matching.length;
+  
+  return {
+    hour, direction, filters,
+    foldWRs, foldPnLs,
+    minWR, maxWR, avgWR,
+    profitFolds,
+    totalPnL,
+    totalWR: totalWins / matching.length,
+    n: matching.length,
+    avgEntry,
+    trades: matching
+  };
+}
+
+// Build filter combinations for deep search
+function buildFilterCombos(enabledFilters) {
+  const combos = [{ dow: 'all', ob: 'all', arb: 'all' }];
+  if (!enabledFilters.length) return combos;
+  
+  const opts = {
+    dow: ['all', 'weekday', 'weekend'],
+    ob: ['all', 'bullish', 'bearish'],
+    arb: ['all', 'efficient', 'mispriced'],
+  };
+  
+  const result = [];
+  for (const d of (enabledFilters.includes('dow') ? opts.dow : ['all'])) {
+    for (const o of (enabledFilters.includes('ob') ? opts.ob : ['all'])) {
+      for (const a of (enabledFilters.includes('arb') ? opts.arb : ['all'])) {
+        result.push({ dow: d, ob: o, arb: a });
+      }
+    }
+  }
+  return result;
+}
+
+function filterLabel(f) {
+  const parts = [];
+  if (f.dow !== 'all') parts.push(f.dow);
+  if (f.ob !== 'all') parts.push('OB:' + f.ob);
+  if (f.arb !== 'all') parts.push('arb:' + f.arb);
+  return parts.length ? parts.join(', ') : '—';
+}
+
+async function runHourSearch(deep) {
+  hHideErr();
+  document.getElementById('h-results').style.display = 'none';
+  document.getElementById('h-klines-results').style.display = 'none';
+  
+  const asset = document.getElementById('h-asset').value;
+  const tf = document.getElementById('h-tf').value;
+  const phaseMin = +document.getElementById('h-phase').value;
+  const cfg = {
+    emin: +document.getElementById('h-emin').value,
+    emax: +document.getElementById('h-emax').value,
+    stake: +document.getElementById('h-stake').value,
+    minFold: +document.getElementById('h-minfold').value,
+  };
+  
+  hSetL('Завантаження snapshots з Supabase...', 5);
+  
+  let snapshots;
+  try {
+    snapshots = await fetchHourSnapshots(asset, tf, phaseMin);
+  } catch (e) {
+    hHideL();
+    hShowErr('Помилка завантаження: ' + e.message);
+    return;
+  }
+  
+  if (!snapshots.length) {
+    hHideL();
+    hShowErr('Жодного snapshot не знайдено для цих параметрів');
+    return;
+  }
+  
+  hSetL(`Завантажено ${snapshots.length} унікальних вікон. Обробка...`, 45);
+  
+  // Build filter combos
+  const enabledFilters = [];
+  if (deep) {
+    if (document.getElementById('h-f-dow').checked) enabledFilters.push('dow');
+    if (document.getElementById('h-f-ob').checked) enabledFilters.push('ob');
+    if (document.getElementById('h-f-arb').checked) enabledFilters.push('arb');
+  }
+  const filterCombos = buildFilterCombos(enabledFilters);
+  
+  // Run search
+  const results = [];
+  const totalCombos = 24 * 2 * filterCombos.length;
+  let done = 0;
+  
+  for (let hour = 0; hour < 24; hour++) {
+    for (const direction of ['up', 'down']) {
+      for (const filters of filterCombos) {
+        const result = evaluateHourCombo(snapshots, hour, direction, filters, cfg);
+        if (result) results.push(result);
+        done++;
+        if (done % 50 === 0) {
+          hSetL(`Перебираю комбінації: ${done}/${totalCombos}...`, 45 + 50 * (done/totalCombos));
+          await new Promise(r => setTimeout(r, 0));
+        }
+      }
+    }
+  }
+  
+  // Sort by chosen metric
+  const sortBy = document.getElementById('h-sort').value;
+  results.sort((a, b) => {
+    if (sortBy === 'min_wr') return b.minWR - a.minWR;
+    if (sortBy === 'avg_wr') return b.avgWR - a.avgWR;
+    if (sortBy === 'real_pnl') return b.totalPnL - a.totalPnL;
+    if (sortBy === 'profit_folds') return b.profitFolds - a.profitFolds || b.minWR - a.minWR;
+    return 0;
+  });
+  
+  hHideL();
+  renderHourResults(results, asset, tf, snapshots.length, deep);
+}
+
+function runHourBasicSearch() { runHourSearch(false); }
+function runHourDeepSearch() { runHourSearch(true); }
+
+function renderHourResults(results, asset, tf, snapCount, deep) {
+  document.getElementById('h-results').style.display = 'block';
+  document.getElementById('h-results-title').textContent = 
+    deep ? '🔬 Deep Search Results' : '🔍 Basic Search Results';
+  document.getElementById('h-results-meta').textContent = 
+    `${asset.toUpperCase()} ${tf} | ${snapCount} вікон | ${results.length} valid combinations`;
+  
+  const tbody = document.getElementById('h-results-body');
+  tbody.innerHTML = '';
+  
+  if (!results.length) {
+    tbody.innerHTML = '<tr><td colspan="16" style="text-align:center;padding:20px;color:#888">Жодна комбінація не пройшла мінімум sample per fold. Зменши "Min sample per fold" або розширь entry zone.</td></tr>';
+    return;
+  }
+  
+  const topN = Math.min(30, results.length);
+  
+  // Save results globally for detail click
+  window._hourResults = results.slice(0, topN);
+  
+  for (let i = 0; i < topN; i++) {
+    const r = results[i];
+    const tr = document.createElement('tr');
+    tr.onclick = () => showHourDetail(i);
+    
+    // WR cell formatter
+    const fmtWR = (wr) => {
+      const pct = Math.round(wr * 100);
+      const need = Math.round(r.avgEntry * 100); // breakeven WR for avg entry
+      let cls = 'fold-cell';
+      if (pct >= need + 3) cls += ' good';
+      else if (pct < need - 3) cls += ' bad';
+      else cls += ' warn';
+      return `<td class="${cls}">${pct}</td>`;
+    };
+    
+    // Verdict
+    const breakeven = r.avgEntry * 100;
+    const minWRpct = r.minWR * 100;
+    const totalWRpct = r.totalWR * 100;
+    let verdict, vCls;
+    if (minWRpct >= breakeven + 3 && r.profitFolds >= 4) { verdict = '✅ Strong'; vCls = 'badge-good'; }
+    else if (totalWRpct >= breakeven + 2 && r.profitFolds >= 3) { verdict = '🟡 Maybe'; vCls = 'badge-warn'; }
+    else { verdict = '❌ Weak'; vCls = 'badge-bad'; }
+    
+    const pnlCls = r.totalPnL > 0 ? 'positive' : 'negative';
+    
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td><strong>${String(r.hour).padStart(2,'0')}:00</strong></td>
+      <td><span class="badge ${r.direction==='up'?'badge-up':'badge-down'}">${r.direction.toUpperCase()}</span></td>
+      <td style="font-size:11px;color:#666">${filterLabel(r.filters)}</td>
+      ${r.foldWRs.map(fmtWR).join('')}
+      <td><strong>${Math.round(r.minWR*100)}</strong></td>
+      <td>${Math.round(r.avgWR*100)}</td>
+      <td>${r.profitFolds}/5</td>
+      <td>${r.n}</td>
+      <td>${r.avgEntry.toFixed(3)}</td>
+      <td class="${pnlCls}"><strong>${r.totalPnL >= 0 ? '+' : ''}${r.totalPnL.toFixed(2)}$</strong></td>
+      <td><span class="badge ${vCls}">${verdict}</span></td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+function showHourDetail(idx) {
+  const r = window._hourResults[idx];
+  if (!r) return;
+  
+  const panel = document.getElementById('h-detail-panel');
+  
+  // Day-by-day breakdown
+  const dayMap = new Map();
+  for (const t of r.trades) {
+    const dateStr = new Date(t.wts * 1000).toISOString().slice(0, 10);
+    if (!dayMap.has(dateStr)) dayMap.set(dateStr, []);
+    dayMap.get(dateStr).push(t);
+  }
+  const dayRows = [...dayMap.entries()].sort();
+  
+  const breakeven = r.avgEntry * 100;
+  
+  let dayHtml = '<table class="hour-results-table"><thead><tr><th>День</th><th>Trades</th><th>Wins</th><th>WR</th><th>Avg Entry</th><th>PnL</th></tr></thead><tbody>';
+  for (const [day, trades] of dayRows) {
+    const wins = trades.filter(t => t.won).length;
+    const wr = Math.round(100 * wins / trades.length);
+    const avgEntry = trades.reduce((s, t) => s + t.entry, 0) / trades.length;
+    let pnl = 0;
+    for (const t of trades) pnl += t.won ? (1/t.entry - 1) * +document.getElementById('h-stake').value : -+document.getElementById('h-stake').value;
+    const pnlCls = pnl > 0 ? 'positive' : (pnl < 0 ? 'negative' : 'neutral');
+    dayHtml += `<tr><td>${day}</td><td>${trades.length}</td><td>${wins}</td><td>${wr}%</td><td>${avgEntry.toFixed(3)}</td><td class="${pnlCls}">${pnl>=0?'+':''}${pnl.toFixed(2)}$</td></tr>`;
+  }
+  dayHtml += '</tbody></table>';
+  
+  panel.innerHTML = `
+    <div class="card">
+      <h2>Деталі: ${String(r.hour).padStart(2,'0')}:00 UTC ${r.direction.toUpperCase()}</h2>
+      <div class="hour-detail">
+        <div class="hour-detail-section">
+          <div class="hour-detail-title">Параметри стратегії</div>
+          <div>Filters: ${filterLabel(r.filters)}</div>
+          <div>Total trades: <strong>${r.n}</strong> | Avg entry: <strong>${r.avgEntry.toFixed(3)}</strong> | Break-even WR: <strong>${breakeven.toFixed(1)}%</strong></div>
+        </div>
+        <div class="hour-detail-section">
+          <div class="hour-detail-title">5-fold CV breakdown</div>
+          <div>WR: ${r.foldWRs.map(w=>Math.round(w*100)).join(' / ')} %</div>
+          <div>PnL per fold: ${r.foldPnLs.map(p=>(p>=0?'+':'')+p.toFixed(2)).join(' / ')} $</div>
+          <div>Min WR: <strong>${Math.round(r.minWR*100)}%</strong> | Avg WR: <strong>${Math.round(r.avgWR*100)}%</strong> | Profit folds: <strong>${r.profitFolds}/5</strong></div>
+        </div>
+        <div class="hour-detail-section">
+          <div class="hour-detail-title">Чесна перевірка</div>
+          <div>${r.minWR * 100 >= breakeven + 3 ? '✅' : '❌'} Min fold WR (${Math.round(r.minWR*100)}%) ${r.minWR * 100 >= breakeven + 3 ? '≥' : '<'} breakeven+3% (${(breakeven+3).toFixed(0)}%)</div>
+          <div>${r.profitFolds >= 4 ? '✅' : '❌'} Profitable on ${r.profitFolds}/5 folds (need ≥4)</div>
+          <div>${r.n >= 30 ? '✅' : '⚠️'} Sample size ${r.n} ${r.n >= 30 ? '≥' : '<'} 30 (statistical reliability)</div>
+        </div>
+      </div>
+      <div style="margin-top:1rem">
+        <div class="hour-detail-title">Day-by-day breakdown</div>
+        <div style="overflow-x:auto">${dayHtml}</div>
+      </div>
+    </div>
+  `;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// =============== KLINES VALIDATION ===============
+
+async function runKlinesValidation() {
+  hHideErr();
+  document.getElementById('h-klines-results').style.display = 'none';
+  
+  const asset = document.getElementById('h-asset').value;
+  const tf = document.getElementById('h-tf').value;
+  
+  if (asset !== 'btc' && asset !== 'eth') {
+    hShowErr('Klines validation доступна тільки для BTC і ETH');
+    return;
+  }
+  
+  hSetL(`Завантаження ${asset.toUpperCase()} klines з БД...`, 5);
+  
+  // Fetch all 1m klines
+  const tableName = asset + '_klines_1m';
+  const rows = [];
+  let offset = 0;
+  
+  try {
+    while (true) {
+      const url = `${SB_URL}/rest/v1/${tableName}?select=open_time,open,close&order=open_time.asc`;
+      const r = await fetch(url, {
+        headers: {'apikey': SB_KEY, 'Authorization': 'Bearer '+SB_KEY, 'Range': `${offset}-${offset+999}`, 'Range-Unit': 'items'}
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const b = await r.json();
+      if (!b.length) break;
+      rows.push(...b);
+      hSetL(`Завантажено ${rows.length} klines...`, Math.min(50, rows.length / 3000));
+      if (b.length < 1000) break;
+      offset += 1000;
+      if (offset > 200000) break;
+    }
+  } catch (e) {
+    hHideL();
+    hShowErr('Помилка завантаження klines: ' + e.message);
+    return;
+  }
+  
+  if (!rows.length) {
+    hHideL();
+    hShowErr(`Таблиця ${tableName} порожня або не існує`);
+    return;
+  }
+  
+  hSetL(`Обробка ${rows.length} klines на ${tf} вікна...`, 60);
+  
+  // Bucket klines into tf windows
+  const windowSec = tf === '5m' ? 300 : 900;
+  const windowMap = new Map(); // window_start_ts -> {open, close, open_time_first, open_time_last}
+  
+  for (const row of rows) {
+    const ts = Math.floor(new Date(row.open_time).getTime() / 1000);
+    const wts = Math.floor(ts / windowSec) * windowSec;
+    const existing = windowMap.get(wts);
+    if (!existing) {
+      windowMap.set(wts, { open: +row.open, close: +row.close, first: ts, last: ts });
+    } else {
+      if (ts < existing.first) { existing.open = +row.open; existing.first = ts; }
+      if (ts > existing.last) { existing.close = +row.close; existing.last = ts; }
+    }
+  }
+  
+  const windows = [...windowMap.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([wts, w]) => ({
+      wts,
+      hour: new Date(wts * 1000).getUTCHours(),
+      direction: w.close > w.open ? 'up' : 'down'
+    }));
+  
+  hSetL(`Обробка ${windows.length} вікон. 5-fold CV на годинах...`, 80);
+  
+  // For each hour, compute 5-fold CV UP%
+  const hourResults = [];
+  for (let hour = 0; hour < 24; hour++) {
+    const matching = windows.filter(w => w.hour === hour);
+    if (matching.length < 25) continue;
+    
+    const folds = splitFolds(matching, 5);
+    const foldUpPcts = folds.map(f => {
+      const ups = f.filter(w => w.direction === 'up').length;
+      return ups / f.length;
+    });
+    
+    const totalUp = matching.filter(w => w.direction === 'up').length;
+    const totalUpPct = totalUp / matching.length;
+    
+    const minF = Math.min(...foldUpPcts);
+    const maxF = Math.max(...foldUpPcts);
+    const avgF = foldUpPcts.reduce((a, b) => a + b, 0) / foldUpPcts.length;
+    
+    hourResults.push({
+      hour, foldUpPcts, minF, maxF, avgF, totalUpPct, n: matching.length
+    });
+  }
+  
+  hHideL();
+  renderKlinesResults(hourResults, asset, tf, windows.length);
+}
+
+function renderKlinesResults(results, asset, tf, totalWindows) {
+  document.getElementById('h-klines-results').style.display = 'block';
+  
+  const startDate = totalWindows > 0 ? 'see DB range' : '—';
+  document.getElementById('h-klines-meta').innerHTML = 
+    `<strong>${asset.toUpperCase()} ${tf}</strong> | ${totalWindows} вікон | 5-fold CV на всіх 24 годинах<br>` +
+    `Це SAME analysis як ми робили в Supabase. Якщо тут pattern виглядає сильним і він також виглядає сильним на Polymarket даних — це підтвердження. Якщо тут close to 50% — pattern noise.`;
+  
+  const tbody = document.getElementById('h-klines-body');
+  tbody.innerHTML = '';
+  
+  // Sort by deviation from 50% (most interesting first)
+  results.sort((a, b) => Math.abs(b.totalUpPct - 0.5) - Math.abs(a.totalUpPct - 0.5));
+  
+  for (const r of results) {
+    const tr = document.createElement('tr');
+    
+    const fmtF = (v) => {
+      const pct = Math.round(v * 100);
+      let cls = 'fold-cell';
+      if (pct >= 53) cls += ' good';
+      else if (pct <= 47) cls += ' bad';
+      else cls += ' warn';
+      return `<td class="${cls}">${pct}</td>`;
+    };
+    
+    const totalPct = Math.round(r.totalUpPct * 100);
+    const minPct = Math.round(r.minF * 100);
+    
+    // Verdict: stable bias if all folds in same direction with edge ≥2pp
+    const allUp = r.foldUpPcts.every(f => f >= 0.52);
+    const allDown = r.foldUpPcts.every(f => f <= 0.48);
+    let verdict, vCls;
+    if (allUp) { verdict = '✅ UP bias stable'; vCls = 'badge-good'; }
+    else if (allDown) { verdict = '✅ DOWN bias stable'; vCls = 'badge-good'; }
+    else if (Math.abs(r.totalUpPct - 0.5) < 0.02) { verdict = '⚪ Coin flip'; vCls = 'badge-warn'; }
+    else { verdict = '🟡 Variable'; vCls = 'badge-warn'; }
+    
+    tr.innerHTML = `
+      <td><strong>${String(r.hour).padStart(2,'0')}:00</strong></td>
+      ${r.foldUpPcts.map(fmtF).join('')}
+      <td><strong>${minPct}</strong></td>
+      <td>${Math.round(r.avgF * 100)}</td>
+      <td><strong>${totalPct}</strong></td>
+      <td>${r.n}</td>
+      <td><span class="badge ${vCls}">${verdict}</span></td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
 // ===============================================
 </script>
 </body>
