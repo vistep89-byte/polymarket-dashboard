@@ -1325,6 +1325,22 @@ const KFOPT_GRID = {
   direction: ['follow', 'contrarian']  // 'cheaper' прибрано — post-hoc selection, бот так не може
 };
 
+// Окремий grid для 15m таймфрейму (вікно 900s замість 300s)
+// Той самий delta/entry, тільки time розширено
+const KFOPT_GRID_15M = {
+  delta:     [0.05, 0.07, 0.10, 0.13],
+  emin:      [0.70, 0.75, 0.78, 0.82],
+  emax:      [0.85, 0.90, 0.95],
+  tmin:      [60, 120, 240, 480],      // мін: 1 хв до закриття; макс: 8 хв
+  tmax:      [600, 750, 880],          // покриває T-880s до T-60s — більшість 15m вікна
+  direction: ['follow', 'contrarian']
+};
+
+// Отримати grid в залежності від таймфрейму
+function getKfoptGrid(tf) {
+  return tf === '15m' ? KFOPT_GRID_15M : KFOPT_GRID;
+}
+
 // Маппінг direction внутрішнього → людського
 const DIR_LABEL = {
   'follow': 'Bullish',
@@ -1555,16 +1571,17 @@ async function runKFoldOptimizer(strict) {
       testRows = null;
     }
 
-    // Generate all valid combinations
+    // Generate all valid combinations (grid depends on timeframe)
+    const grid = getKfoptGrid(tf);
     const combos = [];
-    for (const delta of KFOPT_GRID.delta)
-      for (const emin of KFOPT_GRID.emin)
-        for (const emax of KFOPT_GRID.emax)
+    for (const delta of grid.delta)
+      for (const emin of grid.emin)
+        for (const emax of grid.emax)
           if (emin < emax)
-            for (const tmin of KFOPT_GRID.tmin)
-              for (const tmax of KFOPT_GRID.tmax)
+            for (const tmin of grid.tmin)
+              for (const tmax of grid.tmax)
                 if (tmin < tmax)
-                  for (const direction of KFOPT_GRID.direction) {
+                  for (const direction of grid.direction) {
                     combos.push({
                       minDelta: delta,
                       emin, emax, tmin, tmax, direction,
@@ -1823,16 +1840,17 @@ async function runRollingWalkForward() {
       return;
     }
 
-    // Генеруємо комбінації
+    // Генеруємо комбінації (grid depends on timeframe)
+    const grid = getKfoptGrid(tf);
     const combos = [];
-    for (const delta of KFOPT_GRID.delta)
-      for (const emin of KFOPT_GRID.emin)
-        for (const emax of KFOPT_GRID.emax)
+    for (const delta of grid.delta)
+      for (const emin of grid.emin)
+        for (const emax of grid.emax)
           if (emin < emax)
-            for (const tmin of KFOPT_GRID.tmin)
-              for (const tmax of KFOPT_GRID.tmax)
+            for (const tmin of grid.tmin)
+              for (const tmax of grid.tmax)
                 if (tmin < tmax)
-                  for (const direction of KFOPT_GRID.direction) {
+                  for (const direction of grid.direction) {
                     combos.push({
                       minDelta: delta, emin, emax, tmin, tmax, direction,
                       limit: 999999, useRegime: false, regimeMap: null,
