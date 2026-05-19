@@ -474,10 +474,21 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
       </div>
     </div>
 
-    <div class="btn-row" style="grid-template-columns:1fr 1fr 1fr">
+    <div class="btn-row" style="grid-template-columns:1fr 1fr 1fr 1fr">
       <button onclick="runHourBasicSearch()">🔍 Basic Search (24h × 2dir)</button>
       <button onclick="runHourDeepSearch()" class="secondary">🔬 Deep Search (+filters)</button>
       <button onclick="runKlinesValidation()" class="tertiary">📊 Validate on klines</button>
+      <button onclick="toggleKlinesPaste()" class="tertiary">📋 Paste klines JSON</button>
+    </div>
+    
+    <div id="h-paste-section" style="display:none;margin-top:1rem">
+      <div style="font-size:13px;color:#666;margin-bottom:6px">
+        <strong>SQL для запуску в Supabase SQL editor:</strong>
+        <pre id="h-paste-sql" style="background:#1a1a1a;color:#e5e5e5;padding:10px;border-radius:6px;font-size:11px;overflow-x:auto;margin-top:6px;white-space:pre-wrap"></pre>
+      </div>
+      <label>Встав JSON результат тут:</label>
+      <textarea id="h-paste-input" rows="6" style="width:100%;font-family:monospace;font-size:11px;padding:8px;border:1px solid #ddd;border-radius:6px" placeholder='[{"hour_utc": 0, "f1": "52", ...}, ...]'></textarea>
+      <button onclick="parseKlinesJSON()" style="margin-top:8px">✓ Parse and Show</button>
     </div>
   </div>
 
@@ -3213,7 +3224,123 @@ function showHourDetail(idx) {
   panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// =============== KLINES VALIDATION ===============
+// =============== KLINES VALIDATION VIA JSON PASTE ===============
+
+function toggleKlinesPaste() {
+  const section = document.getElementById('h-paste-section');
+  const visible = section.style.display !== 'none';
+  section.style.display = visible ? 'none' : 'block';
+  if (!visible) {
+    // Update SQL for current asset+timeframe
+    const asset = document.getElementById('h-asset').value;
+    const tf = document.getElementById('h-tf').value;
+    const windowSec = tf === '5m' ? 300 : 900;
+    const tableName = asset === 'btc' ? 'btc_klines_1m' : (asset === 'eth' ? 'eth_klines_1m' : asset + '_klines_1m');
+    const sql = `-- ${asset.toUpperCase()} ${tf} hour-of-day на klines (5-fold CV)
+WITH bucketed AS (
+  SELECT 
+    to_timestamp((EXTRACT(EPOCH FROM open_time)::bigint / ${windowSec}) * ${windowSec}) AS w_ts,
+    open_time, open, close
+  FROM ${tableName}
+),
+window_open AS (
+  SELECT DISTINCT ON (w_ts) w_ts, open AS w_open
+  FROM bucketed ORDER BY w_ts, open_time ASC
+),
+window_close AS (
+  SELECT DISTINCT ON (w_ts) w_ts, close AS w_close
+  FROM bucketed ORDER BY w_ts, open_time DESC
+),
+windows AS (
+  SELECT 
+    wo.w_ts,
+    EXTRACT(HOUR FROM wo.w_ts)::int AS hour_utc,
+    CASE WHEN wc.w_close > wo.w_open THEN 'up' ELSE 'down' END AS direction
+  FROM window_open wo
+  JOIN window_close wc ON wc.w_ts = wo.w_ts
+),
+ranked AS (
+  SELECT *,
+    ROW_NUMBER() OVER (ORDER BY w_ts) AS rn,
+    COUNT(*) OVER () AS total
+  FROM windows
+),
+folded AS (
+  SELECT *,
+    CASE 
+      WHEN rn * 5 <= total THEN 1
+      WHEN rn * 5 <= total * 2 THEN 2
+      WHEN rn * 5 <= total * 3 THEN 3
+      WHEN rn * 5 <= total * 4 THEN 4
+      ELSE 5
+    END AS fold
+  FROM ranked
+)
+SELECT 
+  hour_utc,
+  ROUND(100.0 * SUM(CASE WHEN fold=1 AND direction='up' THEN 1 ELSE 0 END)::numeric 
+        / NULLIF(COUNT(*) FILTER (WHERE fold=1), 0), 0) AS f1,
+  ROUND(100.0 * SUM(CASE WHEN fold=2 AND direction='up' THEN 1 ELSE 0 END)::numeric 
+        / NULLIF(COUNT(*) FILTER (WHERE fold=2), 0), 0) AS f2,
+  ROUND(100.0 * SUM(CASE WHEN fold=3 AND direction='up' THEN 1 ELSE 0 END)::numeric 
+        / NULLIF(COUNT(*) FILTER (WHERE fold=3), 0), 0) AS f3,
+  ROUND(100.0 * SUM(CASE WHEN fold=4 AND direction='up' THEN 1 ELSE 0 END)::numeric 
+        / NULLIF(COUNT(*) FILTER (WHERE fold=4), 0), 0) AS f4,
+  ROUND(100.0 * SUM(CASE WHEN fold=5 AND direction='up' THEN 1 ELSE 0 END)::numeric 
+        / NULLIF(COUNT(*) FILTER (WHERE fold=5), 0), 0) AS f5,
+  ROUND(100.0 * SUM(CASE WHEN direction='up' THEN 1 ELSE 0 END)::numeric / COUNT(*), 0) AS total_up,
+  COUNT(*) AS total_n
+FROM folded
+GROUP BY hour_utc
+ORDER BY hour_utc;`;
+    document.getElementById('h-paste-sql').textContent = sql;
+  }
+}
+
+function parseKlinesJSON() {
+  hHideErr();
+  const raw = document.getElementById('h-paste-input').value.trim();
+  if (!raw) { hShowErr('Встав JSON у textarea вище'); return; }
+  
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (e) {
+    hShowErr('JSON parse error: ' + e.message);
+    return;
+  }
+  
+  if (!Array.isArray(data) || !data.length) {
+    hShowErr('Очікую масив об\'єктів з полями hour_utc, f1..f5, total_up, total_n');
+    return;
+  }
+  
+  // Convert to renderKlinesResults format
+  const results = [];
+  for (const row of data) {
+    const foldUpPcts = [row.f1, row.f2, row.f3, row.f4, row.f5].map(v => (+v) / 100);
+    if (foldUpPcts.some(v => isNaN(v))) continue;
+    const minF = Math.min(...foldUpPcts);
+    const maxF = Math.max(...foldUpPcts);
+    const avgF = foldUpPcts.reduce((a, b) => a + b, 0) / foldUpPcts.length;
+    results.push({
+      hour: +row.hour_utc,
+      foldUpPcts,
+      minF, maxF, avgF,
+      totalUpPct: (+row.total_up) / 100,
+      n: +row.total_n
+    });
+  }
+  
+  const asset = document.getElementById('h-asset').value;
+  const tf = document.getElementById('h-tf').value;
+  const totalWindows = results.reduce((s, r) => s + r.n, 0);
+  
+  renderKlinesResults(results, asset, tf, totalWindows);
+  document.getElementById('h-klines-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// =============== KLINES VALIDATION (FETCH METHOD) ===============
 
 async function runKlinesValidation() {
   hHideErr();
@@ -3233,6 +3360,8 @@ async function runKlinesValidation() {
   const tableName = asset + '_klines_1m';
   const rows = [];
   let offset = 0;
+  let httpStatus = null;
+  let httpBody = null;
   
   try {
     while (true) {
@@ -3240,8 +3369,17 @@ async function runKlinesValidation() {
       const r = await fetch(url, {
         headers: {'apikey': SB_KEY, 'Authorization': 'Bearer '+SB_KEY, 'Range': `${offset}-${offset+999}`, 'Range-Unit': 'items'}
       });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
+      httpStatus = r.status;
+      if (!r.ok) {
+        httpBody = await r.text();
+        throw new Error(`HTTP ${r.status}: ${httpBody.slice(0, 300)}`);
+      }
       const b = await r.json();
+      if (offset === 0 && !b.length) {
+        // First fetch empty - probably RLS
+        httpBody = JSON.stringify(b);
+        break;
+      }
       if (!b.length) break;
       rows.push(...b);
       hSetL(`Завантажено ${rows.length} klines...`, Math.min(50, rows.length / 3000));
@@ -3257,7 +3395,7 @@ async function runKlinesValidation() {
   
   if (!rows.length) {
     hHideL();
-    hShowErr(`Таблиця ${tableName} порожня або не існує`);
+    hShowErr(`Таблиця ${tableName} повертає пустий масив (HTTP ${httpStatus}). Найімовірніша причина — Row Level Security блокує SELECT через anon role. Виправлення: відкрий Supabase Dashboard → Authentication → Policies → таблиця ${tableName} → додай "Enable read access for anon" policy, або вимкни RLS для цієї таблиці. Альтернатива: запусти SQL запит з агрегацією у Supabase SQL editor і встав JSON у вкладку "Validate via JSON paste" (потрібно додати).`);
     return;
   }
   
