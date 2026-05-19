@@ -162,6 +162,9 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
   <div class="btn-row" style="margin-top:8px;grid-template-columns:1fr">
     <button id="rolling-wf-btn" onclick="runRollingWalkForward()" style="background:linear-gradient(135deg,#059669 0%,#0891b2 100%);font-weight:600;color:white;padding:14px">🎯 Rolling Walk-Forward + Group Test (чесна валідація)</button>
   </div>
+  <div class="btn-row" style="margin-top:8px;grid-template-columns:1fr">
+    <button id="stability-btn" onclick="runStabilityTest()" style="background:linear-gradient(135deg,#9333ea 0%,#db2777 100%);font-weight:600;color:white;padding:14px">🛡️ Stability Test — топ-10 стратегій через всі блоки (одні параметри)</button>
+  </div>
 </div>
 
 <div id="error-msg" class="error" style="display:none"></div>
@@ -313,6 +316,25 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
       працюють в середньому на test. Якщо група в плюсі — edge є; якщо ні — Top-1 була просто outlier.
     </div>
     <div id="rolling-wf-content"></div>
+  </div>
+</div>
+
+<div id="stability-results" style="display:none">
+  <div class="card">
+    <h2>🛡️ Stability Test — топ-10 стратегій</h2>
+    <div id="stability-info" style="font-size:13px;color:#888;margin-bottom:12px"></div>
+    <div style="background:#f3e8ff;border-left:3px solid #9333ea;padding:10px 12px;font-size:12px;line-height:1.6;margin-bottom:12px;border-radius:0 4px 4px 0">
+      <strong>Що це робить:</strong> кожна стратегія прогоняється з <strong>фіксованими параметрами</strong> через 
+      усі 5 блоків окремо. Це показує <strong>стабільність в часі</strong>: чи стратегія працює в кожен період, 
+      чи "ловить" едж тільки в один момент.
+      <br><br>
+      <strong>Як читати:</strong> "Blocks +" = скільки з 5 блоків в плюсі. <strong>5/5</strong> = стабільний едж.
+      <strong>3/5</strong> = нестабільно. Чим більше "+" — тим надійніше.
+      <br><br>
+      <strong>Сортування:</strong> спочатку за кількістю позитивних блоків, потім за PnL найгіршого блоку
+      (worst-case оптимізація).
+    </div>
+    <div id="stability-content"></div>
   </div>
 </div>
 
@@ -2056,6 +2078,264 @@ function renderRollingWFResults(wfResults, blocks, elapsed, asset, tf, pos) {
   `;
 
   content.innerHTML = html;
+}
+
+
+// ===========================================================
+// STABILITY TEST — топ-10 стратегій через ВСІ блоки з фіксованими параметрами
+// ===========================================================
+
+let LAST_STABILITY_RESULTS = [];
+
+async function runStabilityTest() {
+  document.getElementById('error-msg').style.display='none';
+  document.getElementById('info-msg').style.display='none';
+  const asset=document.getElementById('asset').value;
+  const tf=document.getElementById('timeframe').value;
+  const pos=+document.getElementById('pos').value;
+  const btn=document.getElementById('stability-btn');
+  btn.disabled=true;
+  btn.textContent='⏳ Обробка...';
+
+  const NUM_BLOCKS = 5;
+
+  try {
+    const setL = (msg) => {
+      document.getElementById('loading').style.display='block';
+      document.getElementById('loading').textContent = msg;
+    };
+
+    setL('Завантажую дані...');
+    const rows = await fetchRows(asset, tf);
+
+    setL('Розбиваю на блоки...');
+    const blocks = splitRowsIntoBlocks(rows, NUM_BLOCKS);
+    if (!blocks) {
+      showErr(`Замало даних для ${NUM_BLOCKS} блоків.`);
+      btn.disabled=false; btn.textContent='🛡️ Stability Test — топ-10 стратегій через всі блоки (одні параметри)';
+      document.getElementById('loading').style.display='none';
+      return;
+    }
+
+    // Генеруємо комбінації
+    const combos = [];
+    for (const delta of KFOPT_GRID.delta)
+      for (const emin of KFOPT_GRID.emin)
+        for (const emax of KFOPT_GRID.emax)
+          if (emin < emax)
+            for (const tmin of KFOPT_GRID.tmin)
+              for (const tmax of KFOPT_GRID.tmax)
+                if (tmin < tmax)
+                  for (const direction of KFOPT_GRID.direction) {
+                    combos.push({
+                      minDelta: delta, emin, emax, tmin, tmax, direction,
+                      limit: 999999, useRegime: false, regimeMap: null,
+                    });
+                  }
+
+    const startTime = performance.now();
+    const allResults = [];
+
+    // Для КОЖНОЇ комбінації — прогоняємо через КОЖЕН блок окремо
+    for (let i = 0; i < combos.length; i++) {
+      const cfg = combos[i];
+      const blockStats = [];
+
+      for (const b of blocks) {
+        const trades = process(b.rows, cfg);
+        if (trades.length === 0) {
+          blockStats.push({ trades: 0, wr: 0, pnl: 0, valid: false });
+        } else {
+          const s = stats(trades, pos);
+          blockStats.push({
+            trades: s.n,
+            wr: s.wr,
+            pnl: s.pnl,
+            valid: true
+          });
+        }
+      }
+
+      // Метрики стабільності
+      const validBlocks = blockStats.filter(b => b.valid);
+      if (validBlocks.length < NUM_BLOCKS) continue;  // пропускаємо якщо хоч один блок не має трейдів
+
+      const blocksPositive = blockStats.filter(b => b.pnl > 0).length;
+      const totalTrades = blockStats.reduce((sum, b) => sum + b.trades, 0);
+      const totalPnL = blockStats.reduce((sum, b) => sum + b.pnl, 0);
+      const minBlockPnL = Math.min(...blockStats.map(b => b.pnl));
+      const avgWR = blockStats.reduce((sum, b) => sum + b.wr * b.trades, 0) / totalTrades;
+
+      // Фільтр: мінімум трейдів
+      if (totalTrades < 100) continue;
+
+      allResults.push({
+        cfg,
+        blockStats,
+        blocksPositive,
+        totalTrades,
+        totalPnL,
+        minBlockPnL,
+        avgWR
+      });
+
+      if (i % 100 === 0) {
+        setL(`Обробка комбінацій (${Math.round(100 * i / combos.length)}%) | стабільних: ${allResults.length}`);
+        await new Promise(r => setTimeout(r, 0));
+      }
+    }
+
+    // Сортування: спочатку blocksPositive desc, потім minBlockPnL desc (worst-case оптимізація)
+    allResults.sort((a, b) => {
+      if (b.blocksPositive !== a.blocksPositive) return b.blocksPositive - a.blocksPositive;
+      return b.minBlockPnL - a.minBlockPnL;
+    });
+
+    const top10 = allResults.slice(0, 10);
+    LAST_STABILITY_RESULTS = top10;
+
+    const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
+
+    document.getElementById('stability-info').textContent =
+      `${asset.toUpperCase()} ${tf} | ставка $${pos} | перебрано ${combos.length} комбінацій | пройшли мінімум (100+ трейдів × 5 блоків): ${allResults.length} | час: ${elapsed}s`;
+
+    renderStabilityResults(top10, blocks);
+
+    document.getElementById('loading').style.display='none';
+    document.getElementById('stability-results').style.display='block';
+
+  } catch (e) {
+    showErr('Помилка: ' + e.message);
+    console.error(e);
+  }
+  btn.disabled=false;
+  btn.textContent='🛡️ Stability Test — топ-10 стратегій через всі блоки (одні параметри)';
+}
+
+function renderStabilityResults(top10, blocks) {
+  const content = document.getElementById('stability-content');
+
+  if (top10.length === 0) {
+    content.innerHTML = `<div style="text-align:center;color:#888;padding:20px">
+      Жодна стратегія не дала 100+ трейдів в кожному з 5 блоків. Можливо мало даних.
+    </div>`;
+    return;
+  }
+
+  // Заголовки блоків (з датами)
+  const blockHeaders = blocks.map((b, i) =>
+    `<th><div style="font-size:11px">Блок ${i+1}</div><div style="font-size:10px;color:#888;font-weight:400">${b.startDate.toISOString().slice(5,10)}–${b.endDate.toISOString().slice(5,10)}</div></th>`
+  ).join('');
+
+  let html = `
+    <div style="overflow-x:auto">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Параметри</th>
+          <th>Blocks +</th>
+          <th>Total trades</th>
+          <th>Avg WR</th>
+          <th>Total PnL</th>
+          <th>Worst block</th>
+          ${blockHeaders}
+          <th>Дії</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  top10.forEach((r, idx) => {
+    const blocksPosColor = r.blocksPositive === 5 ? '#22c55e' :
+                          r.blocksPositive === 4 ? '#84cc16' :
+                          r.blocksPositive === 3 ? '#eab308' :
+                          r.blocksPositive === 2 ? '#f59e0b' : '#ef4444';
+    const totalPnLColor = r.totalPnL > 0 ? '#22c55e' : '#ef4444';
+    const minPnLColor = r.minBlockPnL > 0 ? '#22c55e' : '#ef4444';
+
+    const cfgStr = `δ≥${r.cfg.minDelta}% | ${r.cfg.emin}-${r.cfg.emax} | ${r.cfg.tmin}-${r.cfg.tmax}s | ${r.cfg.direction}`;
+
+    // Блок-кольори
+    const blockCells = r.blockStats.map(bs => {
+      const c = bs.pnl > 0 ? '#22c55e' : '#ef4444';
+      const sign = bs.pnl >= 0 ? '+' : '';
+      return `<td style="color:${c};font-weight:500;font-size:12px;text-align:center">
+        <div>${sign}$${bs.pnl.toFixed(2)}</div>
+        <div style="font-size:10px;color:#888;font-weight:400">${(bs.wr*100).toFixed(0)}% / ${bs.trades}</div>
+      </td>`;
+    }).join('');
+
+    html += `
+      <tr>
+        <td><strong>${idx + 1}</strong></td>
+        <td style="font-family:monospace;font-size:11px;max-width:280px">${cfgStr}</td>
+        <td style="text-align:center;font-weight:700;font-size:18px;color:${blocksPosColor}">${r.blocksPositive}/5</td>
+        <td style="text-align:center">${r.totalTrades}</td>
+        <td style="text-align:center">${(r.avgWR * 100).toFixed(1)}%</td>
+        <td style="color:${totalPnLColor};font-weight:600;text-align:center">${r.totalPnL >= 0 ? '+' : ''}$${r.totalPnL.toFixed(2)}</td>
+        <td style="color:${minPnLColor};font-weight:500;text-align:center">${r.minBlockPnL >= 0 ? '+' : ''}$${r.minBlockPnL.toFixed(2)}</td>
+        ${blockCells}
+        <td><button onclick="useStabilityStrategy(${idx})" style="padding:6px 10px;font-size:11px;background:#9333ea;color:white;border:none;border-radius:4px;cursor:pointer;white-space:nowrap">Use</button></td>
+      </tr>
+    `;
+  });
+
+  html += `</tbody></table></div>`;
+
+  // Інтерпретація
+  const top1 = top10[0];
+  let verdict, vColor;
+  if (top1.blocksPositive === 5) {
+    verdict = '✅ Найкраща стратегія в плюсі в УСІХ 5 блоках — справді стабільний едж';
+    vColor = '#22c55e';
+  } else if (top1.blocksPositive === 4) {
+    verdict = '🟡 Найкраща стратегія в плюсі в 4/5 блоків — добре, але один поганий період є';
+    vColor = '#eab308';
+  } else if (top1.blocksPositive === 3) {
+    verdict = '🟠 Найкраща стратегія в плюсі тільки 3/5 — нестабільний едж';
+    vColor = '#f59e0b';
+  } else {
+    verdict = '❌ Жодна стратегія не показала стабільність — едж під сумнівом';
+    vColor = '#ef4444';
+  }
+
+  html += `
+    <div style="margin-top:20px;padding:14px;background:${vColor}15;border-left:4px solid ${vColor};border-radius:0 4px 4px 0">
+      <strong style="color:${vColor};font-size:14px">${verdict}</strong>
+    </div>
+    <div style="margin-top:16px;padding:14px;background:#f9fafb;border-radius:6px;font-size:13px;line-height:1.7">
+      <strong>📖 Як читати:</strong><br>
+      <strong>"Blocks +"</strong> = з 5 послідовних періодів у скількох стратегія в плюсі. <strong>5/5</strong> = ідеально стабільна.<br>
+      <strong>"Worst block"</strong> = найгірший PnL з 5 блоків. Якщо позитивний — стратегія стійка.<br>
+      <strong>Кожна клітинка</strong> блоку: <strong>PnL / WR% / трейдів</strong>.<br>
+      <br>
+      <strong>Сортування:</strong> спочатку за кількістю позитивних блоків (більше = краще),
+      потім за PnL найгіршого блоку (worst-case).<br>
+      <br>
+      Натисни <strong>"Use"</strong> щоб завантажити параметри стратегії в фільтри зверху.
+    </div>
+  `;
+
+  content.innerHTML = html;
+}
+
+function useStabilityStrategy(idx) {
+  const r = LAST_STABILITY_RESULTS[idx];
+  if (!r) return;
+  document.getElementById('emin').value = r.cfg.emin;
+  document.getElementById('emax').value = r.cfg.emax;
+  document.getElementById('tmin').value = r.cfg.tmin;
+  document.getElementById('tmax').value = r.cfg.tmax;
+  document.getElementById('delta').value = r.cfg.minDelta;
+  document.getElementById('direction').value = r.cfg.direction;
+  ['emin','emax','tmin','tmax','delta'].forEach(id => {
+    const el = document.getElementById(id);
+    const ev = new Event('input', {bubbles:true});
+    if (el) el.dispatchEvent(ev);
+  });
+  alert(`Параметри завантажено: delta≥${r.cfg.minDelta}%, ${r.cfg.emin}-${r.cfg.emax}, ${r.cfg.tmin}-${r.cfg.tmax}s, ${DIR_LABEL[r.cfg.direction]}.\nBlocks +: ${r.blocksPositive}/5 | Worst block: $${r.minBlockPnL.toFixed(2)}`);
+  window.scrollTo({top:0, behavior:'smooth'});
 }
 
 
