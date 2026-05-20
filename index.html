@@ -3946,19 +3946,24 @@ async function loadStackData() {
   
   if (!rawRows.length) {
     document.getElementById('stack-loading').style.display = 'none';
-    errEl.innerHTML = `
-      <strong>Auto-fetch повернувся пустим</strong> — RLS блокує доступ до klines таблиці через anon role.<br><br>
-      <strong>Два варіанти виправити:</strong><br>
-      <strong>А)</strong> Один раз виправ RLS у Supabase: Authentication → Policies → ${tableName} → Add policy "Enable read access for anon" (operation: SELECT, expression: true). Після цього auto-fetch буде працювати.<br>
-      <strong>Б)</strong> Використай ручний paste нижче (вже відкритий) — скопіюй SQL → запусти в Supabase SQL editor → встав JSON результат.
-    `;
+    const msg = `Auto-fetch повернувся пустим — RLS блокує доступ до klines таблиці через anon role.
+
+Два варіанти:
+А) Виправ RLS у Supabase: Authentication → Policies → ${tableName} → New policy: SELECT, target anon, expression "true"
+Б) Використай paste fallback нижче (вже відкритий)`;
+    
+    errEl.innerHTML = msg.replace(/\n/g, '<br>');
     errEl.style.display = 'block';
+    errEl.style.padding = '14px';
+    errEl.scrollIntoView({behavior: 'smooth', block: 'center'});
+    
     // Auto-open paste fallback
     const details = document.querySelector('#tab-stack details');
     if (details) {
       details.open = true;
-      setTimeout(() => details.scrollIntoView({behavior: 'smooth', block: 'center'}), 100);
     }
+    
+    console.warn('Auto-fetch returned empty for', tableName);
     return;
   }
   
@@ -4297,13 +4302,29 @@ const FILTER_VALUES = {
 };
 
 async function greedySearch(features, minN, minFolds, minEdge) {
-  // Start from each short pattern as base, greedily add filters
+  // Pre-index features by short_p (16 groups) for dramatic speedup
+  const byShortP = new Map();
+  for (const f of features) {
+    if (!byShortP.has(f.short_p)) byShortP.set(f.short_p, []);
+    byShortP.get(f.short_p).push(f);
+  }
+  
   const results = [];
   FILTER_VALUES.short_p = stackAvailableShortPatterns;
   
+  const totalPatterns = stackAvailableShortPatterns.length;
+  let processedPatterns = 0;
+  
   for (const sp of stackAvailableShortPatterns) {
+    processedPatterns++;
+    document.getElementById('stack-progress').style.width = (100 * processedPatterns / totalPatterns) + '%';
+    document.getElementById('stack-loading-text').textContent = 
+      `Greedy search: pattern ${processedPatterns}/${totalPatterns} (${sp})...`;
+    await new Promise(r => setTimeout(r, 0)); // yield
+    
+    // Start from pre-indexed subset
     let currentFilters = { short_p: [sp] };
-    let currentMatch = applyFilters(features, currentFilters);
+    let currentMatch = byShortP.get(sp) || [];
     let currentStats = computeStats(currentMatch);
     
     if (!currentStats || currentMatch.length < minN) continue;
@@ -4330,8 +4351,8 @@ async function greedySearch(features, minN, minFolds, minEdge) {
         const values = dim === 'short_p' ? stackAvailableShortPatterns : FILTER_VALUES[dim];
         
         for (const val of values) {
-          const trialFilters = {...currentFilters, [dim]: [val]};
-          const trialMatch = applyFilters(features, trialFilters);
+          // Filter from current subset, not whole features
+          const trialMatch = currentMatch.filter(f => f[dim] === val);
           if (trialMatch.length < minN) continue;
           const trialStats = computeStats(trialMatch);
           if (!trialStats) continue;
@@ -4340,7 +4361,7 @@ async function greedySearch(features, minN, minFolds, minEdge) {
           if (trialStats.direction !== currentStats.direction) continue;
           if (Math.abs(trialStats.edge) > Math.abs(bestNewStats.edge) + 0.5) {
             bestNewStats = trialStats;
-            bestNewFilters = {dim, val, allFilters: trialFilters};
+            bestNewFilters = {dim, val, allFilters: {...currentFilters, [dim]: [val]}};
             bestNewMatch = trialMatch;
           }
         }
@@ -4360,46 +4381,65 @@ async function greedySearch(features, minN, minFolds, minEdge) {
           stats: currentStats
         });
       }
+      
+      // Yield after each depth iteration
+      await new Promise(r => setTimeout(r, 0));
     }
     
-    if (results.length > 200) break; // safety
-    await new Promise(r => setTimeout(r, 0));
+    if (results.length > 500) break; // safety
   }
   
   return results;
 }
 
 async function exhaustiveSearch(features, minN, minFolds, minEdge) {
-  // Group features by composite key (all dimensions)
-  // For exhaustive we use 1-3 dimensions at a time to avoid combinatorial explosion
-  
   const results = [];
   FILTER_VALUES.short_p = stackAvailableShortPatterns;
   
-  // 1D groupings
+  // Pre-index features by short_p for fast 3D access
+  const byShortP = new Map();
+  for (const f of features) {
+    if (!byShortP.has(f.short_p)) byShortP.set(f.short_p, []);
+    byShortP.get(f.short_p).push(f);
+  }
+  
+  // 1D groupings - iterate all features once per dimension
+  document.getElementById('stack-loading-text').textContent = 'Exhaustive 1D...';
+  document.getElementById('stack-progress').style.width = '10%';
+  await new Promise(r => setTimeout(r, 0));
+  
   for (const dim of FILTER_DIMENSIONS) {
     const values = dim === 'short_p' ? stackAvailableShortPatterns : FILTER_VALUES[dim];
+    // Group by this dimension's value
+    const byValue = new Map();
+    for (const f of features) {
+      const v = f[dim];
+      if (!byValue.has(v)) byValue.set(v, []);
+      byValue.get(v).push(f);
+    }
     for (const val of values) {
-      const filters = {[dim]: [val]};
-      const match = applyFilters(features, filters);
+      const match = byValue.get(val) || [];
       if (match.length < minN) continue;
       const stats = computeStats(match);
       if (!stats) continue;
       if (Math.abs(stats.edge) >= minEdge && stats.profitFolds >= minFolds) {
         results.push({
-          filterDesc: describeFilters(filters),
-          filters,
+          filterDesc: describeFilters({[dim]: [val]}),
+          filters: {[dim]: [val]},
           stats
         });
       }
     }
+    await new Promise(r => setTimeout(r, 0));
   }
   
-  document.getElementById('stack-progress').style.width = '20%';
+  document.getElementById('stack-loading-text').textContent = 'Exhaustive 2D...';
+  document.getElementById('stack-progress').style.width = '25%';
   await new Promise(r => setTimeout(r, 0));
   
-  // 2D groupings
+  // 2D groupings - start from short_p subset for speed
   for (let i = 0; i < FILTER_DIMENSIONS.length; i++) {
+    document.getElementById('stack-progress').style.width = (25 + 25 * i / FILTER_DIMENSIONS.length) + '%';
     for (let j = i + 1; j < FILTER_DIMENSIONS.length; j++) {
       const dim1 = FILTER_DIMENSIONS[i];
       const dim2 = FILTER_DIMENSIONS[j];
@@ -4407,43 +4447,58 @@ async function exhaustiveSearch(features, minN, minFolds, minEdge) {
       const vals2 = dim2 === 'short_p' ? stackAvailableShortPatterns : FILTER_VALUES[dim2];
       
       for (const v1 of vals1) {
+        // Get subset by first dim
+        const subset = dim1 === 'short_p' ? (byShortP.get(v1) || []) : features.filter(f => f[dim1] === v1);
+        if (subset.length < minN) continue;
+        
         for (const v2 of vals2) {
-          const filters = {[dim1]: [v1], [dim2]: [v2]};
-          const match = applyFilters(features, filters);
+          const match = subset.filter(f => f[dim2] === v2);
           if (match.length < minN) continue;
           const stats = computeStats(match);
           if (!stats) continue;
           if (Math.abs(stats.edge) >= minEdge && stats.profitFolds >= minFolds) {
             results.push({
-              filterDesc: describeFilters(filters),
-              filters,
+              filterDesc: describeFilters({[dim1]: [v1], [dim2]: [v2]}),
+              filters: {[dim1]: [v1], [dim2]: [v2]},
               stats
             });
           }
         }
       }
+      await new Promise(r => setTimeout(r, 0));
     }
-    document.getElementById('stack-progress').style.width = (20 + 30 * i / FILTER_DIMENSIONS.length) + '%';
-    await new Promise(r => setTimeout(r, 0));
   }
   
-  // 3D groupings (limited to most promising — short_p + 2 others)
-  const bestShortPatterns = stackAvailableShortPatterns.slice(0, Math.min(16, stackAvailableShortPatterns.length));
-  for (const sp of bestShortPatterns) {
-    const baseMatch = features.filter(f => f.short_p === sp);
+  document.getElementById('stack-loading-text').textContent = 'Exhaustive 3D...';
+  document.getElementById('stack-progress').style.width = '55%';
+  await new Promise(r => setTimeout(r, 0));
+  
+  // 3D groupings (short_p + 2 others)
+  const otherDims = FILTER_DIMENSIONS.filter(d => d !== 'short_p');
+  let spDone = 0;
+  
+  for (const sp of stackAvailableShortPatterns) {
+    spDone++;
+    const baseMatch = byShortP.get(sp) || [];
     if (baseMatch.length < minN * 4) continue;
     
-    for (let i = 0; i < FILTER_DIMENSIONS.length; i++) {
-      for (let j = i + 1; j < FILTER_DIMENSIONS.length; j++) {
-        const dim1 = FILTER_DIMENSIONS[i];
-        const dim2 = FILTER_DIMENSIONS[j];
-        if (dim1 === 'short_p' || dim2 === 'short_p') continue;
+    document.getElementById('stack-progress').style.width = (55 + 45 * spDone / stackAvailableShortPatterns.length) + '%';
+    document.getElementById('stack-loading-text').textContent = `Exhaustive 3D: pattern ${spDone}/${stackAvailableShortPatterns.length}`;
+    await new Promise(r => setTimeout(r, 0));
+    
+    for (let i = 0; i < otherDims.length; i++) {
+      for (let j = i + 1; j < otherDims.length; j++) {
+        const dim1 = otherDims[i];
+        const dim2 = otherDims[j];
         const vals1 = FILTER_VALUES[dim1];
         const vals2 = FILTER_VALUES[dim2];
         
         for (const v1 of vals1) {
+          const subset = baseMatch.filter(f => f[dim1] === v1);
+          if (subset.length < minN) continue;
+          
           for (const v2 of vals2) {
-            const match = baseMatch.filter(f => f[dim1] === v1 && f[dim2] === v2);
+            const match = subset.filter(f => f[dim2] === v2);
             if (match.length < minN) continue;
             const stats = computeStats(match);
             if (!stats) continue;
@@ -4458,9 +4513,8 @@ async function exhaustiveSearch(features, minN, minFolds, minEdge) {
           }
         }
       }
+      await new Promise(r => setTimeout(r, 0));
     }
-    document.getElementById('stack-progress').style.width = (50 + 50 * (bestShortPatterns.indexOf(sp) + 1) / bestShortPatterns.length) + '%';
-    await new Promise(r => setTimeout(r, 0));
   }
   
   return results;
