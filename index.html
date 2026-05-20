@@ -96,7 +96,7 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
 <div class="tab-nav">
   <button class="tab-btn active" onclick="switchTab('snipe')" id="tab-btn-snipe">🎯 Snipe Strategy (legacy)</button>
   <button class="tab-btn" onclick="switchTab('hour')" id="tab-btn-hour">⏰ Hour-of-Day Search</button>
-  <button class="tab-btn" onclick="switchTab('stack')" id="tab-btn-stack">🔬 Pattern Stack Search</button>
+  <button class="tab-btn" onclick="switchTab('stack')" id="tab-btn-stack">🔬 Pattern Finder</button>
 </div>
 
 <div class="tab-content active" id="tab-snipe">
@@ -560,7 +560,7 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
 <div class="tab-content" id="tab-stack">
   <div class="card">
     <div style="background:#dbeafe;padding:10px 12px;border-radius:8px;margin-bottom:1rem;font-size:13px;color:#1e40af">
-      <strong>🔬 Pattern Stack Search:</strong> завантажує klines напряму з Supabase, обчислює 10 features на window, шукає stacked filters які накопичують малі edges в великі через 5-fold CV.
+      <strong>🔬 Pattern Finder:</strong> завантажує klines напряму з Supabase, обчислює 10 features на window, шукає stacked filters які накопичують малі edges в великі через 5-fold CV.
     </div>
 
     <div class="grid4" style="margin-bottom:1rem">
@@ -3928,15 +3928,37 @@ async function loadStackData() {
     rawRows = await fetchKlinesAggregated(asset, tf, maxRows);
   } catch (e) {
     document.getElementById('stack-loading').style.display = 'none';
-    errEl.innerHTML = `Fetch failed: ${e.message}. <br><br>Найімовірніша причина — RLS блокує SELECT через anon role. <br>Або виправ RLS у Supabase (Authentication → Policies → дозволити SELECT для anon), <br>або використай <strong>ручний SQL paste</strong> внизу (розкрий details).`;
+    const tableName = asset + '_klines_1m';
+    errEl.innerHTML = `
+      <strong>Auto-fetch failed:</strong> ${e.message}<br><br>
+      Найімовірніша причина — RLS блокує SELECT для anon role.<br>
+      <strong>Використай ручний paste нижче</strong> (вже відкритий) — він не залежить від RLS.
+    `;
     errEl.style.display = 'block';
+    // Auto-open paste fallback
+    const details = document.querySelector('#tab-stack details');
+    if (details) {
+      details.open = true;
+      setTimeout(() => details.scrollIntoView({behavior: 'smooth', block: 'center'}), 100);
+    }
     return;
   }
   
   if (!rawRows.length) {
     document.getElementById('stack-loading').style.display = 'none';
-    errEl.innerHTML = `Fetch вернувся пустим. RLS можливо блокує. Використай ручний SQL paste внизу.`;
+    errEl.innerHTML = `
+      <strong>Auto-fetch повернувся пустим</strong> — RLS блокує доступ до klines таблиці через anon role.<br><br>
+      <strong>Два варіанти виправити:</strong><br>
+      <strong>А)</strong> Один раз виправ RLS у Supabase: Authentication → Policies → ${tableName} → Add policy "Enable read access for anon" (operation: SELECT, expression: true). Після цього auto-fetch буде працювати.<br>
+      <strong>Б)</strong> Використай ручний paste нижче (вже відкритий) — скопіюй SQL → запусти в Supabase SQL editor → встав JSON результат.
+    `;
     errEl.style.display = 'block';
+    // Auto-open paste fallback
+    const details = document.querySelector('#tab-stack details');
+    if (details) {
+      details.open = true;
+      setTimeout(() => details.scrollIntoView({behavior: 'smooth', block: 'center'}), 100);
+    }
     return;
   }
   
