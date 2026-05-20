@@ -560,30 +560,46 @@ td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
 <div class="tab-content" id="tab-stack">
   <div class="card">
     <div style="background:#dbeafe;padding:10px 12px;border-radius:8px;margin-bottom:1rem;font-size:13px;color:#1e40af">
-      <strong>🔬 Pattern Stack Search:</strong> завантажує klines, обчислює 10 features на window, дозволяє знайти комбінації які стабільно дають edge через 5-fold CV. Шукає stacked filters які накопичують малі edges в великі.
+      <strong>🔬 Pattern Stack Search:</strong> завантажує klines напряму з Supabase, обчислює 10 features на window, шукає stacked filters які накопичують малі edges в великі через 5-fold CV.
     </div>
 
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-      <span style="background:#5856d6;color:white;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">1</span>
-      <strong style="font-size:13px">Завантаж klines (через SQL paste workflow):</strong>
-      <select id="stack-asset" style="width:auto;padding:4px 8px;font-size:12px;margin-left:8px" onchange="updateStackSQL()">
-        <option value="btc">BTC</option>
-        <option value="eth" selected>ETH</option>
-      </select>
-      <select id="stack-tf" style="width:auto;padding:4px 8px;font-size:12px" onchange="updateStackSQL()">
-        <option value="5m" selected>5m</option>
-        <option value="15m">15m</option>
-      </select>
-      <button onclick="copyStackSQL()" style="margin-left:auto;width:auto;padding:6px 12px;font-size:12px">📋 Copy SQL</button>
+    <div class="grid4" style="margin-bottom:1rem">
+      <div>
+        <label>Актив</label>
+        <select id="stack-asset" onchange="updateStackSQL()">
+          <option value="btc">BTC</option>
+          <option value="eth" selected>ETH</option>
+        </select>
+      </div>
+      <div>
+        <label>Timeframe</label>
+        <select id="stack-tf" onchange="updateStackSQL()">
+          <option value="5m" selected>5m</option>
+          <option value="15m">15m</option>
+        </select>
+      </div>
+      <div>
+        <label>Max raw rows (limit для швидкості)</label>
+        <select id="stack-limit">
+          <option value="30000">30,000</option>
+          <option value="60000" selected>60,000 (recommended)</option>
+          <option value="150000">150,000 (повний ETH)</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:end">
+        <button onclick="loadStackData()" style="width:100%">⚙️ Auto-fetch and Compute</button>
+      </div>
     </div>
-    <pre id="stack-sql" style="background:#1a1a1a;color:#e5e5e5;padding:10px;border-radius:6px;font-size:11px;overflow-x:auto;max-height:200px;white-space:pre;margin-bottom:14px"></pre>
 
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-      <span style="background:#5856d6;color:white;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">2</span>
-      <strong style="font-size:13px">Встав JSON результат:</strong>
-    </div>
-    <textarea id="stack-paste" rows="4" style="width:100%;font-family:monospace;font-size:11px;padding:8px;border:1px solid #ddd;border-radius:6px" placeholder='[{"w_start":..., "w_open":..., ...}, ...]'></textarea>
-    <button onclick="loadStackData()" style="margin-top:8px">⚙️ Load and Compute Features</button>
+    <details style="margin-top:0.5rem">
+      <summary style="cursor:pointer;font-size:12px;color:#666">Альтернатива: ручний SQL paste (якщо fetch failed через RLS)</summary>
+      <div style="padding:10px;background:#f9fafb;border-radius:6px;margin-top:8px">
+        <button onclick="copyStackSQL()" style="width:auto;padding:6px 12px;font-size:12px;margin-bottom:8px">📋 Copy SQL</button>
+        <pre id="stack-sql" style="background:#1a1a1a;color:#e5e5e5;padding:10px;border-radius:6px;font-size:11px;overflow-x:auto;max-height:160px;white-space:pre;margin-bottom:10px"></pre>
+        <textarea id="stack-paste" rows="3" style="width:100%;font-family:monospace;font-size:11px;padding:8px;border:1px solid #ddd;border-radius:6px" placeholder='[{"w_start":..., "w_open":..., ...}, ...]'></textarea>
+        <button onclick="loadStackFromPaste()" style="margin-top:6px;width:auto;padding:6px 14px;font-size:12px">⚙️ Load from Paste</button>
+      </div>
+    </details>
   </div>
 
   <div id="stack-error" class="error" style="display:none"></div>
@@ -3821,13 +3837,126 @@ function bucketDistance(price, high24, low24) {
   return 'middle';
 }
 
+async function fetchKlinesAggregated(asset, tf, maxRows) {
+  // Try direct fetch first (works if RLS allows anon SELECT)
+  const tableName = asset + '_klines_1m';
+  const rawRows = [];
+  let offset = 0;
+  const pageSize = 1000;
+  
+  while (rawRows.length < maxRows) {
+    const remaining = maxRows - rawRows.length;
+    const fetchSize = Math.min(pageSize, remaining);
+    
+    const url = `${SB_URL}/rest/v1/${tableName}?select=open_time,open,close,high,low,volume,taker_buy_base_volume&order=open_time.asc`;
+    const r = await fetch(url, {
+      headers: {
+        'apikey': SB_KEY, 
+        'Authorization': 'Bearer '+SB_KEY, 
+        'Range': `${offset}-${offset+fetchSize-1}`, 
+        'Range-Unit': 'items'
+      }
+    });
+    
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const batch = await r.json();
+    if (!batch.length) break;
+    
+    rawRows.push(...batch);
+    document.getElementById('stack-progress').style.width = Math.min(30, rawRows.length / maxRows * 30) + '%';
+    document.getElementById('stack-loading-text').textContent = `Fetched ${rawRows.length} raw 1m candles...`;
+    await new Promise(r => setTimeout(r, 0));
+    
+    if (batch.length < fetchSize) break;
+    offset += fetchSize;
+  }
+  
+  return rawRows;
+}
+
+function aggregateTo5mWindows(rawRows, tf) {
+  // Group 1m candles into 5m or 15m windows
+  const windowSec = tf === '5m' ? 300 : 900;
+  const map = new Map();
+  
+  for (const row of rawRows) {
+    const ts = Math.floor(new Date(row.open_time).getTime() / 1000);
+    const wts = Math.floor(ts / windowSec) * windowSec;
+    
+    let w = map.get(wts);
+    if (!w) {
+      w = {
+        w_start: wts,
+        w_open: +row.open,
+        w_close: +row.close,
+        w_high: +row.high,
+        w_low: +row.low,
+        w_vol: 0,
+        w_tbv: 0,
+        _first_ts: ts,
+        _last_ts: ts,
+      };
+      map.set(wts, w);
+    }
+    
+    if (ts < w._first_ts) { w.w_open = +row.open; w._first_ts = ts; }
+    if (ts > w._last_ts) { w.w_close = +row.close; w._last_ts = ts; }
+    if (+row.high > w.w_high) w.w_high = +row.high;
+    if (+row.low < w.w_low) w.w_low = +row.low;
+    w.w_vol += +row.volume;
+    w.w_tbv += +(row.taker_buy_base_volume || 0);
+  }
+  
+  return [...map.values()].sort((a, b) => a.w_start - b.w_start);
+}
+
 async function loadStackData() {
+  // AUTO-FETCH mode: directly from Supabase, no paste needed
+  const errEl = document.getElementById('stack-error');
+  errEl.style.display = 'none';
+  
+  const asset = document.getElementById('stack-asset').value;
+  const tf = document.getElementById('stack-tf').value;
+  const maxRows = +document.getElementById('stack-limit').value;
+  
+  document.getElementById('stack-loading').style.display = 'block';
+  document.getElementById('stack-loading-text').textContent = `Fetching ${asset.toUpperCase()} klines from Supabase...`;
+  document.getElementById('stack-progress').style.width = '5%';
+  
+  let rawRows;
+  try {
+    rawRows = await fetchKlinesAggregated(asset, tf, maxRows);
+  } catch (e) {
+    document.getElementById('stack-loading').style.display = 'none';
+    errEl.innerHTML = `Fetch failed: ${e.message}. <br><br>Найімовірніша причина — RLS блокує SELECT через anon role. <br>Або виправ RLS у Supabase (Authentication → Policies → дозволити SELECT для anon), <br>або використай <strong>ручний SQL paste</strong> внизу (розкрий details).`;
+    errEl.style.display = 'block';
+    return;
+  }
+  
+  if (!rawRows.length) {
+    document.getElementById('stack-loading').style.display = 'none';
+    errEl.innerHTML = `Fetch вернувся пустим. RLS можливо блокує. Використай ручний SQL paste внизу.`;
+    errEl.style.display = 'block';
+    return;
+  }
+  
+  document.getElementById('stack-loading-text').textContent = `Aggregating ${rawRows.length} 1m candles в ${tf} вікна...`;
+  document.getElementById('stack-progress').style.width = '35%';
+  await new Promise(r => setTimeout(r, 50));
+  
+  const windows = aggregateTo5mWindows(rawRows, tf);
+  
+  await processStackWindows(windows);
+}
+
+async function loadStackFromPaste() {
+  // FALLBACK mode: parse JSON from textarea
   const errEl = document.getElementById('stack-error');
   errEl.style.display = 'none';
   
   const raw = document.getElementById('stack-paste').value.trim();
   if (!raw) {
-    errEl.textContent = 'Встав JSON у textarea вище';
+    errEl.textContent = 'Встав JSON у textarea';
     errEl.style.display = 'block';
     return;
   }
@@ -3848,19 +3977,18 @@ async function loadStackData() {
   }
   
   if (!Array.isArray(rows) || !rows.length) {
-    errEl.textContent = 'Очікую масив об\'єктів з полями w_start, w_open, w_close, ...';
+    errEl.textContent = 'Очікую масив об\'єктів';
     errEl.style.display = 'block';
     return;
   }
   
   document.getElementById('stack-loading').style.display = 'block';
-  document.getElementById('stack-loading-text').textContent = `Обчислюю features для ${rows.length} вікон...`;
-  document.getElementById('stack-progress').style.width = '10%';
-  
+  document.getElementById('stack-loading-text').textContent = `Парсю ${rows.length} вікон...`;
+  document.getElementById('stack-progress').style.width = '20%';
   await new Promise(r => setTimeout(r, 50));
   
-  // Parse and sort by w_start
-  rows = rows.map(r => ({
+  // Convert paste data format
+  const windows = rows.map(r => ({
     w_start: +r.w_start,
     w_open: +r.w_open,
     w_close: +r.w_close,
@@ -3869,6 +3997,14 @@ async function loadStackData() {
     w_vol: +r.w_vol,
     w_tbv: +(r.w_tbv || 0)
   })).sort((a, b) => a.w_start - b.w_start);
+  
+  await processStackWindows(windows);
+}
+
+async function processStackWindows(rows) {
+  document.getElementById('stack-loading-text').textContent = `Обчислюю features для ${rows.length} вікон...`;
+  document.getElementById('stack-progress').style.width = '50%';
+  await new Promise(r => setTimeout(r, 50));
   
   // Pre-compute lookback values via running sums where possible
   document.getElementById('stack-progress').style.width = '30%';
